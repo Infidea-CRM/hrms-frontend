@@ -1,2 +1,1 @@
-# hrms-frontend
-This is  Infidea in-house HRMS Portal Frontend 
+This is updated version of Infidea Admin

@@ -371,6 +371,7 @@ export const callStatusOptions = [
   { value: "Shared with Inhouse HR", label: "Shared with Inhouse HR" },
   { value: "Inhouse HR In Touch", label: "Inhouse HR In Touch" },
   { value: "Lineup", label: "Lineup" },
+  { value: "Selected", label: "Selected" },
   { value: "Not Aligned Anywhere", label: "Not Aligned Anywhere" },
   { value: "Not Looking for Job", label: "Not Looking for Job" },
   { value: "Not Picking Call", label: "Not Picking Call" },

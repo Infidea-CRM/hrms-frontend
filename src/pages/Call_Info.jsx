@@ -124,7 +124,8 @@ function CallInfo() {
     walkinDate: "",
     lineupRemarks: "",
     walkinRemarks: "",
-    workMode: "Work From Home"
+    workMode: "Work From Home",
+    jobInterestedIn: ""
   });
 
   // Add this after your formData state initialization
@@ -546,7 +547,8 @@ function CallInfo() {
         walkinDate: "",
         lineupRemarks: "",
         walkinRemarks: "",
-        workMode: "Work From Home"
+        workMode: "Work From Home",
+        jobInterestedIn: ""
       });
       setSameAsContact(true);
       setDuplicateInfo(null);
@@ -620,7 +622,8 @@ function CallInfo() {
         walkinDate: formData.walkinDate,
         lineupRemarks: formData.lineupRemarks,
         walkinRemarks: formData.walkinRemarks,
-        workMode: formData.workMode
+        workMode: formData.workMode,
+        jobInterestedIn: formData.jobInterestedIn
       };
       // Call API
       const response = await EmployeeServices.createCandidateData(candidateData);
@@ -661,7 +664,8 @@ function CallInfo() {
         walkinDate: "",
         lineupRemarks: "",
         walkinRemarks: "",
-        workMode: "Work From Home"
+        workMode: "Work From Home",
+        jobInterestedIn: ""
       });
       setSameAsContact(true);
       
@@ -812,6 +816,7 @@ function CallInfo() {
     { label: "Relocation", key: "relocation", icon: <MdShare />, type: "select", options: relocationOptions, required: true, inputClass: "w-full" },
     { label: "Work Mode", key: "workMode", icon: <MdBusinessCenter />, type: "select", options: workModeOptions, required: true, inputClass: "w-full" },
     { label: "Process/Profile", key: "companyProfile", icon: <MdBusinessCenter />, type: "select", options: jobProfileOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.jobProfiles },
+    { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: true, inputClass: "w-full" },
     { 
       label: "Walkin Date", 

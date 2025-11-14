@@ -73,6 +73,7 @@ const useFilter = (data) => {
             fieldContains(search.shift) ||
             fieldContains(search.relocation) ||
             fieldContains(search.companyProfile) ||
+            fieldContains(search.jobInterestedIn) ||
             fieldContains(search.callStatus) ||
             fieldContains(search.callSummary) ||
             fieldContains(search.callDuration) ||
@@ -174,6 +175,22 @@ const useFilter = (data) => {
     // Apply sorting based on sortBy and sortOrder
     if (sortBy) {
       services = [...services].sort((a, b) => {
+        // Map field names from table headers to actual object properties
+        const fieldMapping = {
+          "profile": "companyProfile",
+          "salaryexpectation": "salaryExpectation",
+          "noticeperiod": "noticePeriod",
+          "jobinterestedin": "jobInterestedIn",
+          "updateddate": "updatedAt",
+          "lastRegisteredByName": "lastRegisteredByName",
+          "timespent": "employeeCallHistory",
+          "expiry": "remainingDays",
+          "callsummary": "callSummary",
+        };
+        
+        // Get the actual field name from mapping or use the sortBy value directly
+        const actualField = fieldMapping[sortBy.toLowerCase()] || sortBy;
+        
         // Handle nested properties with dot notation (e.g., "name.en")
         const getValue = (obj, path) => {
           const keys = path.split(".");
@@ -183,8 +200,21 @@ const useFilter = (data) => {
           );
         };
 
-        let valueA = getValue(a, sortBy);
-        let valueB = getValue(b, sortBy);
+        let valueA = getValue(a, actualField);
+        let valueB = getValue(b, actualField);
+        
+        // Special handling for timespent (employeeCallHistory)
+        if (sortBy.toLowerCase() === "timespent") {
+          const getTotalDuration = (history) => {
+            if (!history || history.length === 0) return 0;
+            return history.reduce((total, call) => {
+              const minutes = parseInt(call.duration?.split(' ')[0]) || 0;
+              return total + minutes;
+            }, 0);
+          };
+          valueA = getTotalDuration(valueA);
+          valueB = getTotalDuration(valueB);
+        }
 
         // Handle null/undefined values
         if (valueA === null || valueA === undefined)

@@ -119,6 +119,7 @@ const formatCallHistory = (callDurationHistory) => {
     { label: "City", key: "city", value: call.city || "Not Specified" },
     { label: "Locality", key: "locality", value: call.locality || "Not Specified", show: () => call.city?.toLowerCase() === "indore" },
     { label: "Profile", key: "company", value: call.companyProfile || "Not Specified" },
+    { label: "Job Interested In", key: "jobInterestedIn", value: call.jobInterestedIn || "Not Specified" },
     { label: "Salary Expectation", key: "salaryExpectations", value: call.salaryExpectation ? `₹${call.salaryExpectation}` : "Not Specified" },
     { label: "Communication", key: "levelOfCommunication", value: call.communication },
     { label: "Notice Period", key: "noticePeriod", value: call.noticePeriod },

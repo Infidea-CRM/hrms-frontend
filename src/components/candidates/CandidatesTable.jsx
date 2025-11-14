@@ -262,6 +262,13 @@ const CandidatesTable = ({
                 </span>
               </TableCell>
 
+              {/* Job Interested In */}
+              <TableCell onClick={() => onView(candidate)} className="cursor-pointer">
+                <span className="text-sm">
+                  {searchTerm ? highlightText(candidate?.jobInterestedIn || "-", searchTerm) : (candidate?.jobInterestedIn || "-")}
+                </span>
+              </TableCell>
+
               {/* Salary Expectation */}
               <TableCell onClick={() => onView(candidate)} className="cursor-pointer">
                 <span className="text-sm">

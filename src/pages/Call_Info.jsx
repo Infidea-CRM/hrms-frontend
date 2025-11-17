@@ -57,7 +57,6 @@ function CallInfo() {
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(false);
   const [phoneError, setPhoneError] = useState("");
-  const [sameAsContact, setSameAsContact] = useState(true);
   const contactInputRef = useRef(null);
   const callSummaryRef = useRef(null);
   const candidateNameRef = useRef(null);
@@ -95,7 +94,6 @@ function CallInfo() {
     gender: "",
     contactNumber: "",
     whatsappNumber: "",
-    sameAsContact: true,
     experience: "",
     qualification: "",
     passingYear: "",
@@ -151,7 +149,6 @@ function CallInfo() {
       if (currentTime - parsedTimestamp < 7200000) {
         try {
           setFormData(JSON.parse(savedForm));
-          setSameAsContact(JSON.parse(savedForm).sameAsContact || false);
           setFormSavedTimestamp(parsedTimestamp);
         } catch (error) {
           console.error("Error parsing saved form data:", error);
@@ -397,7 +394,7 @@ function CallInfo() {
         }
       }
       
-      // Always update WhatsApp number when contact number changes (since sameAsContact is always true)
+      // Auto-fill WhatsApp number with contact number
       setFormData(prev => ({ ...prev, [field]: value, whatsappNumber: value }));
       return;
     }
@@ -489,26 +486,6 @@ function CallInfo() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSameAsContactChange = (e) => {
-    const isChecked = e.target.checked;
-    setSameAsContact(isChecked);
-    
-    if (isChecked) {
-      // Copy contact number to WhatsApp number
-      setFormData(prev => ({ 
-        ...prev, 
-        sameAsContact: true,
-        whatsappNumber: prev.contactNumber
-      }));
-    } else {
-      // Clear the WhatsApp number when unchecked
-      setFormData(prev => ({ 
-        ...prev, 
-        sameAsContact: false,
-        whatsappNumber: ""
-      }));
-    }
-  };
 
   // Reset form function
   const resetForm = () => {
@@ -519,7 +496,6 @@ function CallInfo() {
         gender: "",
         contactNumber: "",
         whatsappNumber: "",
-        sameAsContact: true,
         experience: "",
         qualification: "",
         passingYear: "",
@@ -636,7 +612,6 @@ function CallInfo() {
         gender: "",
         contactNumber: "",
         whatsappNumber: "",
-        sameAsContact: true,
         experience: "",
         qualification: "",
         passingYear: "",
@@ -773,11 +748,8 @@ function CallInfo() {
       type: "tel", 
       pattern: "[0-9]{10}", 
       maxLength: 10, 
-      required: !sameAsContact, 
-      inputClass: "w-full",
-      disabled: sameAsContact,
-      hasCheckbox: true,
-      checkboxLabel: "Same as previous field"
+      required: false, 
+      inputClass: "w-full"
     },
     { label: "Sourced", key: "source", icon: <MdSource />, type: "select", options: sourceOptions, required: true, inputClass: "w-full" },
     { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: true, inputClass: "w-full" },
@@ -1320,7 +1292,7 @@ function CallInfo() {
           {/* All fields in a grid layout */}
           <div className="rounded-lg p-3 sm:p-4 shadow-md border dark:bg-gray-800 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-3 sm:gap-x-4 gap-y-3">
-              {fields.map(({ label, key, type, icon, inputClass, options, required, pattern, maxLength, ref, hasCheckbox, checkboxLabel, disabled, hidden, loading, span, render }) => {
+              {fields.map(({ label, key, type, icon, inputClass, options, required, pattern, maxLength, ref, disabled, hidden, loading, span, render }) => {
                 // Skip rendering if the field should be hidden
                 if (hidden) {
                   return null;
@@ -1511,7 +1483,7 @@ function CallInfo() {
                           value={formData[key]}
                           onChange={(e) => handleChange(key, e.target.value)}
                           placeholder={label}
-                          required={key === "whatsappNumber" ? (!sameAsContact && isFieldRequired) : isFieldRequired}
+                          required={isFieldRequired}
                           pattern={pattern}
                           maxLength={maxLength}
                           disabled={disabled}
@@ -1546,31 +1518,6 @@ function CallInfo() {
                           <div className="text-xs text-blue-500 mt-1">Checking number...</div>
                         )}
                         
-                        {/* Checkbox for copying contact number to WhatsApp */}
-                        {hasCheckbox && (
-                          <div className="mt-0.5">
-                            <label
-                              className="flex items-center gap-1.5 text-xs cursor-pointer"
-                              tabIndex={0}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  handleSameAsContactChange({
-                                    target: { checked: !sameAsContact }
-                                  });
-                                }
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={sameAsContact}
-                                onChange={handleSameAsContactChange}
-                                className={`rounded h-3.5 w-3.5 ${darkMode ? 'text-[#e2692c] focus:ring-[#e2692c]' : 'text-[#1a5d96] focus:ring-[#1a5d96]'}`}
-                              />
-                              <span className="text-xs">{checkboxLabel}</span>
-                            </label>
-                          </div>
-                        )}
                       </>
                     )}
                   </div>

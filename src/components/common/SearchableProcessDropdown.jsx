@@ -3,6 +3,10 @@ import { MdInfo } from "react-icons/md";
 import ProcessJDModal from "./ProcessJDModal";
 import { getProcessJDData } from "@/utils/processJDData";
 
+// Global flag to track if Tab key was recently pressed (for all dropdown instances)
+let globalTabPressed = false;
+let globalTabTimeout = null;
+
 const SearchableProcessDropdown = forwardRef(({
   options,
   value,
@@ -123,12 +127,26 @@ const SearchableProcessDropdown = forwardRef(({
 
   // Add state to track if we're shift-tabbing
   const [isShiftTabbing, setIsShiftTabbing] = useState(false);
+  // Track if the focus is from tabbing - use ref for immediate access
+  const isTabbingRef = useRef(false);
 
-  // Track key down/up for shift key
+  // Track key down/up for shift key and global Tab key
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Tab' && e.shiftKey) {
         setIsShiftTabbing(true);
+      }
+      // Track Tab key globally
+      if (e.key === 'Tab') {
+        globalTabPressed = true;
+        // Clear any existing timeout
+        if (globalTabTimeout) {
+          clearTimeout(globalTabTimeout);
+        }
+        // Reset after focus events have been processed
+        globalTabTimeout = setTimeout(() => {
+          globalTabPressed = false;
+        }, 300);
       }
     };
     
@@ -144,6 +162,9 @@ const SearchableProcessDropdown = forwardRef(({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      if (globalTabTimeout) {
+        clearTimeout(globalTabTimeout);
+      }
     };
   }, []);
 
@@ -161,8 +182,13 @@ const SearchableProcessDropdown = forwardRef(({
     
     // Set tabbing flag when Tab key is pressed
     if (e.key === "Tab") {
+      isTabbingRef.current = true;
       setIsTabbing(true);
-      setTimeout(() => setIsTabbing(false), 100);
+      // Reset after a short delay to allow handleFocus to check it
+      setTimeout(() => {
+        isTabbingRef.current = false;
+        setIsTabbing(false);
+      }, 200);
     }
     
     if (e.key === "ArrowDown") {
@@ -203,13 +229,18 @@ const SearchableProcessDropdown = forwardRef(({
         setSearchTerm(selectedOption.label);
       }
     } else if (e.key === "Tab") {
-      // Only intercept tab if dropdown is open
-      if (isOpen && filteredOptions.length > 0) {
-        e.preventDefault(); // Prevent default tab behavior
-        handleOptionSelect(filteredOptions[highlightedIndex]);
+      // Close dropdown if open, but don't select anything
+      if (isOpen) {
+        setIsOpen(false);
+        // Restore the search term to the selected value if any
+        if (selectedOption) {
+          setSearchTerm(selectedOption.label);
+        } else {
+          setSearchTerm("");
+        }
       }
-      // For Shift+Tab or regular Tab when dropdown is closed, just let the default browser behavior happen
-      // Don't prevent default, don't call preventDefault()
+      // Always let Tab key work normally - don't prevent default
+      // This allows normal tab navigation without auto-selecting options
     }
   };
 
@@ -251,17 +282,21 @@ const SearchableProcessDropdown = forwardRef(({
 
   // Handle focus to open dropdown and clear search term
   const handleFocus = (e) => {
-    // Don't open dropdown if we're shift-tabbing into this field
-    if (!isShiftTabbing) {
+    // Don't open dropdown if we're shift-tabbing or tabbing into this field
+    // Only open on mouse click or explicit user interaction
+    if (!isShiftTabbing && !isTabbingRef.current && !globalTabPressed) {
       setIsOpen(true);
-      
-      // Only clear the search term if we're not tabbing or there's no selected value
-      if (!isTabbing || !selectedOption) {
-        setSearchTerm("");
-      }
+      setSearchTerm("");
       
       if (inputRef.current) {
         inputRef.current.select();
+      }
+    } else {
+      // When tabbing into field, keep dropdown closed and maintain current value
+      if (selectedOption) {
+        setSearchTerm(selectedOption.label);
+      } else {
+        setSearchTerm("");
       }
     }
   };

@@ -19,7 +19,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { FaSearch, FaPlus, FaTimesCircle, FaChevronLeft, FaChevronRight, FaUserCheck, FaUpload, FaFileExcel, FaFilter, FaCheck, FaCopy } from "react-icons/fa";
 import { MdError, MdClose, MdExpandMore, MdExpandLess } from "react-icons/md";
 import CandidatesTable from "@/components/candidates/CandidatesTable";
-import useAsync from "@/hooks/useAsync";
 import CallDetailsViewModal from "@/components/candidates/CallDetailsViewModal";
 import CallDetailsEditModal from "@/components/candidates/CallDetailsEditModal";
 import { Toaster, toast } from 'react-hot-toast';
@@ -80,18 +79,43 @@ const CallDetails = () => {
 
   const { setIsUpdate } = useContext(SidebarContext);
 
-  const { data, loading, error} = useAsync(EmployeeServices.getCandidatesData);
+  // State for API data with pagination
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [totalCandidates, setTotalCandidates] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  // Fetch candidates data with pagination
+  useEffect(() => {
+    const fetchCandidates = async () => {
+      try {
+        setLoading(true);
+        const response = await EmployeeServices.getCandidatesData(currentPage, itemsPerPage);
+        setApiData(response);
+        setTotalCandidates(response?.totalCandidates || 0);
+        setTotalPages(response?.totalPages || 0);
+        setError("");
+      } catch (err) {
+        setError(err.message || "Failed to fetch candidates");
+        setApiData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCandidates();
+  }, [currentPage, itemsPerPage, refreshKey]);
+
+  // Map API response to match expected format
+  const data = apiData ? { candidates: apiData.candidates || [] } : null;
 
 
   // Add states for API data
   const [qualifications, setQualifications] = useState([]);
   const [localities, setLocalities] = useState([]);
 
-  // Add a useEffect to reload data when refreshKey changes
-  useEffect(() => {
-    // This will trigger the useAsync hook to refetch data
-    setIsUpdate(true);
-  }, [refreshKey, setIsUpdate]);
+  // Refresh is handled by the fetchCandidates useEffect via refreshKey dependency
 
   // Add useEffect to fetch qualifications and localities
   useEffect(() => {
@@ -330,7 +354,7 @@ const CallDetails = () => {
   };
 
   const goToNextPage = () => {
-    if (currentPage < totalPages) {
+    if (currentPage < displayTotalPages) {
       setCurrentPage(currentPage + 1);
     }
   };
@@ -380,8 +404,8 @@ const CallDetails = () => {
   // Use the new filter function
   const filteredData = applyFilters(dataTable || []);
   
-  // Update total pages calculation
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  // Use backend pagination totalPages, but fallback to client-side calculation for filtered data
+  const displayTotalPages = totalPages || Math.ceil(filteredData.length / itemsPerPage);
 
   // Toggle sort order when header is clicked
   const handleSortByField = (field) => {
@@ -391,7 +415,7 @@ const CallDetails = () => {
   const handleResultsPerPageChange = (e) => {
     const newLimit = parseInt(e.target.value, 10);
     setItemsPerPage(newLimit);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when changing items per page
   };
 
   const handleView = (call) => {
@@ -1144,46 +1168,12 @@ const CallDetails = () => {
                 </div>
               )}
               
-              {/* Pagination controls - moved from bottom to top */}
-              {filteredData.length > 0 && (
-                <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:ml-auto">
-                  <div className="flex items-center justify-center sm:justify-end md:justify-end space-x-1">
-                    <button
-                      onClick={goToPrevPage}
-                      disabled={currentPage === 1}
-                      className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md ${
-                        currentPage === 1
-                          ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                          : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
-                      }`}
-                    >
-                      <FaChevronLeft className="h-3 w-3" />
-                    </button>
-                    
-                    <span className="text-xs text-gray-700 dark:text-gray-300">
-                      {currentPage} / {totalPages}
-                    </span>
-                    
-                    <button
-                      onClick={goToNextPage}
-                      disabled={currentPage === totalPages}
-                      className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md ${
-                        currentPage === totalPages
-                          ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                          : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
-                      }`}
-                    >
-                      <FaChevronRight className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </AnimatedContent>
 
-      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {filteredData.length}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalCandidates || filteredData.length}</span>
 
       {loading ? (
         // <Loading loading={loading} />
@@ -1289,10 +1279,7 @@ const CallDetails = () => {
               </TableHeader>
 
               <CandidatesTable 
-                candidates={filteredData.slice(
-                  (currentPage - 1) * itemsPerPage,
-                  currentPage * itemsPerPage
-                )}
+                candidates={filteredData}
                 onView={handleView}
                 onEdit={handleEdit}
                 handleDuplicityCheck={handleDuplicityCheck}
@@ -1302,6 +1289,39 @@ const CallDetails = () => {
                 onCandidateSelection={handleCandidateSelection}
               />
             </Table>
+          )}
+          
+          {/* Pagination controls - at bottom of table */}
+          {filteredData.length > 0 && (
+            <div className="flex justify-center items-center mt-4 mb-4 space-x-2">
+              <button
+                onClick={goToPrevPage}
+                disabled={currentPage === 1}
+                className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
+                  currentPage === 1
+                    ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                }`}
+              >
+                <FaChevronLeft className="h-4 w-4" />
+              </button>
+              
+              <span className="text-sm text-gray-700 dark:text-gray-300 px-3">
+                Page {currentPage} of {displayTotalPages}
+              </span>
+              
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage === displayTotalPages}
+                className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
+                  currentPage === displayTotalPages
+                    ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                }`}
+              >
+                <FaChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           )}
         </TableContainer>
       ) : candidateRef.current.value != ""||dateRange.startDate != null||dateRange.endDate != null && serviceData?.length === 0 ? (

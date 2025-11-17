@@ -179,7 +179,7 @@ const formatCallHistory = (callDurationHistory) => {
               })}
             </div>
           </div>
-          {call.employeeCallHistory && call.employeeCallHistory.length > 0 && (
+          {call.callSummary && call.callSummary.length > 0 && (
             <>
               <div className="rounded-xl p-5 shadow-lg border bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700 mb-6">
                 <h3 className="text-lg font-semibold mb-3 text-[#1a5d96] dark:text-[#e2692c]">Call Summary</h3>

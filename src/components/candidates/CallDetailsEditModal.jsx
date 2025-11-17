@@ -51,7 +51,6 @@ import "react-datepicker/dist/react-datepicker.css";
 function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLocked, isRegisteredByMe }) {
   const [darkMode, setDarkMode] = useState(false);
   const [phoneError, setPhoneError] = useState("");
-  const [sameAsContact, setSameAsContact] = useState(false);
   const contactInputRef = useRef(null);
   const callSummaryRef = useRef(null);
   const [loading, setLoading] = useState(false);
@@ -80,7 +79,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     gender: "",
     contactNumber: "",
     whatsappNumber: "",
-    sameAsContact: false,
     experience: "",
     qualification: "",
     passingYear: "",
@@ -108,7 +106,8 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     walkinRemarks: "",
     workMode: "",
     jdReferenceCompany: "",
-    jdReferenceProcess: ""
+    jdReferenceProcess: "",
+    jobInterestedIn: ""
   });
 
   const [showCallSummaryTooltip, setShowCallSummaryTooltip] = useState(null);
@@ -119,15 +118,12 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
   // Initialize form data when candidate data changes
   useEffect(() => {
     if (candidateData) {
-      const whatsappSameAsMobile = candidateData.whatsappNo === candidateData.mobileNo;
-      
       setFormData({
         candidateName: candidateData.name || "",
         source: candidateData.source || "",
         gender: candidateData.gender || "",
         contactNumber: candidateData.mobileNo || "",
         whatsappNumber: candidateData.whatsappNo || "",
-        sameAsContact: whatsappSameAsMobile,
         experience: candidateData.experience || "",
         qualification: candidateData.qualification || "",
         passingYear: candidateData.passingYear || "",
@@ -154,10 +150,9 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         walkinRemarks: candidateData.walkinRemarks || "",
         workMode: candidateData.workMode || "",
         jdReferenceCompany: candidateData.jdReferenceCompany || "",
-        jdReferenceProcess: candidateData.jdReferenceProcess || ""
+        jdReferenceProcess: candidateData.jdReferenceProcess || "",
+        jobInterestedIn: candidateData.jobInterestedIn || ""
       });
-      
-      setSameAsContact(whatsappSameAsMobile);
     }
   }, [candidateData]);
 
@@ -362,11 +357,9 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         }
       }
       
-      // Update WhatsApp number if checkbox is checked
-      if (sameAsContact) {
-        setFormData(prev => ({ ...prev, [field]: value, whatsappNumber: value }));
-        return;
-      }
+      // Auto-fill WhatsApp number with contact number
+      setFormData(prev => ({ ...prev, [field]: value, whatsappNumber: value }));
+      return;
     }
     
     if (field === "state") {
@@ -452,47 +445,11 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSameAsContactChange = (e) => {
-    const isChecked = e.target.checked;
-    setSameAsContact(isChecked);
-    
-    if (isChecked) {
-      // Copy contact number to WhatsApp number
-      setFormData(prev => ({ 
-        ...prev, 
-        sameAsContact: true,
-        whatsappNumber: prev.contactNumber
-      }));
-    } else {
-      // Clear the WhatsApp number when unchecked
-      setFormData(prev => ({ 
-        ...prev, 
-        sameAsContact: false,
-        whatsappNumber: ""
-      }));
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Validate lineup fields if status is "lineup"
-      if (formData.callStatus === "Lineup" && 
-          (!formData.lineupCompany || !formData.lineupProcess || 
-           !formData.lineupDate || !formData.interviewDate)) {
-        notifyError("Please fill in all lineup fields");
-        setLoading(false);
-        return;
-      }
-
-      // Validate walkin date if status is "walkin"
-      if (formData.callStatus === "Walkin at Infidea" && (!formData.walkinDate)) {
-        notifyError("Please provide a walkin date");
-        setLoading(false);
-        return;
-      }
-
       // Prepare candidate data for API
       const updatedData = {
         name: formData.candidateName,
@@ -526,7 +483,8 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         walkinRemarks: formData.walkinRemarks,
         workMode: formData.workMode,
         jdReferenceCompany: formData.jdReferenceCompany,
-        jdReferenceProcess: formData.jdReferenceProcess
+        jdReferenceProcess: formData.jdReferenceProcess,
+        jobInterestedIn: formData.jobInterestedIn || ""
       };
       
       // Call API to update candidate data
@@ -624,7 +582,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
 
   // All fields in a single flat array - organized as in CallInfo
   const fields = [
-    { label: "Candidate's Name", key: "candidateName", icon: <MdPerson />, required: true, inputClass: "w-full" },
+    { label: "Candidate's Name", key: "candidateName", icon: <MdPerson />, required: false, inputClass: "w-full" },
     { 
       label: "Mobile No.", 
       key: "contactNumber", 
@@ -632,7 +590,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       type: "tel", 
       pattern: "[0-9]{10}", 
       maxLength: 10, 
-      required: true, 
+      required: false, 
       inputClass: "w-full", 
       ref: contactInputRef,
       readOnly: true,
@@ -644,16 +602,13 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       type: "tel", 
       pattern: "[0-9]{10}", 
       maxLength: 10, 
-      required: !sameAsContact, 
-      inputClass: "w-full",
-      disabled: sameAsContact,
-      hasCheckbox: true,
-      checkboxLabel: "Same as previous field"
+      required: false, 
+      inputClass: "w-full"
     },
-    { label: "Source", key: "source", icon: <MdSource />, type: "select", options: sourceOptions, required: true, inputClass: "w-full" },
-    { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: true, inputClass: "w-full" },
-    { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptions, required: true, inputClass: "w-full" },
-    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.qualifications },
+    { label: "Source", key: "source", icon: <MdSource />, type: "select", options: sourceOptions, required: false, inputClass: "w-full" },
+    { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: false, inputClass: "w-full" },
+    { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptions, required: false, inputClass: "w-full" },
+    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.qualifications },
     { 
       label: "Passing Year", 
       key: "passingYear", 
@@ -666,25 +621,26 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
           label: String(2030 - i)
         }))
       ],
-      required: true,
+      required: false,
       inputClass: "w-full"
     },
-    { label: "State", key: "state", icon: <MdPublic />, type: "select", options: stateOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.states },
-    { label: "City", key: "city", icon: <MdLocationCity />, type: "select", options: cityOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.cities },
-    { label: "Salary Expectation", key: "salaryExpectations", icon: <IoCashOutline />, required: true, inputClass: "w-full" },
-    { label: "Communication", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: true, inputClass: "w-full" },
-    { label: "Notice Period", key: "noticePeriod", icon: <MdTimer />, type: "select", options: noticePeriodOptions, required: true, inputClass: "w-full" },
-    { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: true, inputClass: "w-full" },
+    { label: "State", key: "state", icon: <MdPublic />, type: "select", options: stateOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.states },
+    { label: "City", key: "city", icon: <MdLocationCity />, type: "select", options: cityOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.cities },
+    { label: "Salary Expectation", key: "salaryExpectations", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
+    { label: "Communication", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: false, inputClass: "w-full" },
+    { label: "Notice Period", key: "noticePeriod", icon: <MdTimer />, type: "select", options: noticePeriodOptions, required: false, inputClass: "w-full" },
+    { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: false, inputClass: "w-full" },
     { label: "Relocation", key: "relocation", icon: <MdShare />, type: "select", options: relocationOptions, required: false, inputClass: "w-full" },
-    { label: "Work Mode", key: "workMode", icon: <MdBusinessCenter />, type: "select", options: workModeOptions, required: true, inputClass: "w-full" },
-    { label: "Job Profile", key: "companyProfile", icon: <MdBusinessCenter />, type: "select", options: jobProfileOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.jobProfiles },
-    { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: true, inputClass: "w-full" },
+    { label: "Work Mode", key: "workMode", icon: <MdBusinessCenter />, type: "select", options: workModeOptions, required: false, inputClass: "w-full" },
+    { label: "Job Profile", key: "companyProfile", icon: <MdBusinessCenter />, type: "select", options: jobProfileOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.jobProfiles },
+    { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
+    { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: false, inputClass: "w-full" },
     { 
       label: "Walkin Date", 
       key: "walkinDate", 
       icon: <MdAccessTime />, 
       type: "custom",
-      required: formData.callStatus === "Walkin at Infidea",
+      required: false,
       inputClass: "w-full",
       hidden: formData.callStatus !== "Walkin at Infidea",
       render: ({ key, label, icon, required, inputClass }) => (
@@ -714,7 +670,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       icon: <MdBusinessCenter />, 
       type: "select", 
       options: companyOptions,
-      required: formData.callStatus === "Lineup",
+      required: false,
       inputClass: "w-full",
       hidden: formData.callStatus !== "Lineup" 
     },
@@ -724,7 +680,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       icon: <MdBusinessCenter />, 
       type: "custom",
       options: filteredProcessOptions,
-      required: formData.callStatus === "Lineup",
+      required: false,
       inputClass: "w-full",
       hidden: formData.callStatus !== "Lineup",
       render: ({ key, label, icon, options, required, inputClass }) => (
@@ -753,7 +709,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
               value={formData.customLineupProcess || ""}
               onChange={(e) => handleChange("customLineupProcess", e.target.value)}
               placeholder="Custom process"
-              required={required && (formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others")}
+              required={false}
               className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                 ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                 : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
@@ -767,7 +723,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       key: "lineupDate", 
       icon: <MdAccessTime />, 
       type: "custom",
-      required: formData.callStatus === "Lineup",
+      required: false,
       inputClass: "w-full",
       hidden: formData.callStatus !== "Lineup",
       render: ({ key, label, icon, required, inputClass }) => (
@@ -796,7 +752,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       key: "interviewDate", 
       icon: <MdAccessTime />, 
       type: "custom",
-      required: formData.callStatus === "Lineup",
+      required: false,
       inputClass: "w-full",
       hidden: formData.callStatus !== "Lineup",
       render: ({ key, label, icon, required, inputClass }) => (
@@ -927,7 +883,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
           {/* All fields in a grid layout */}
           <div className="rounded-lg p-4 shadow-md border dark:bg-gray-800 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3">
-              {fields.map(({ label, key, type, icon, inputClass, options, required, pattern, maxLength, ref, hasCheckbox, checkboxLabel, disabled, hidden, loading, readOnly, span, render }) => {
+              {fields.map(({ label, key, type, icon, inputClass, options, required, pattern, maxLength, ref, disabled, hidden, loading, readOnly, span, render }) => {
                 // Skip rendering if the field should be hidden
                 if (hidden) {
                   return null;
@@ -978,8 +934,8 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                             type={type || "text"}
                             value={formData[key]}
                             onChange={(e) => handleChange(key, e.target.value)}
-                            placeholder={label}
-                            required={key === "whatsappNumber" ? !sameAsContact : required}
+                          placeholder={label}
+                          required={required}
                             pattern={pattern}
                             maxLength={maxLength}
                             ref={ref}
@@ -1004,14 +960,13 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                         <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           <span className="text-base"><MdLocationOn /></span>
                           Locality
-                          <span className="text-red-500">*</span>
                         </label>
                         <SearchableDropdown
                           options={localityOptions}
                           value={formData.locality}
                           onChange={(e) => handleChange("locality", e.target.value)}
                           placeholder="Search locality..."
-                          required={true}
+                          required={false}
                           disabled={loadingDropdownData.localities}
                           darkMode={darkMode}
                           className="w-full"
@@ -1074,7 +1029,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                             value={formData.customLineupCompany || ""}
                             onChange={(e) => handleChange("customLineupCompany", e.target.value)}
                             placeholder="Custom company"
-                            required={required && formData.lineupCompany.toLowerCase() === "others"}
+                            required={false}
                             className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                               : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
@@ -1087,7 +1042,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                             value={formData.customLineupProcess || ""}
                             onChange={(e) => handleChange("customLineupProcess", e.target.value)}
                             placeholder="Custom process"
-                            required={required && formData.lineupProcess.toLowerCase() === "others"}
+                            required={false}
                             className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                               : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
@@ -1100,7 +1055,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                             value={formData.customCompanyProfile || ""}
                             onChange={(e) => handleChange("customCompanyProfile", e.target.value)}
                             placeholder="Custom profile"
-                            required={required && formData.companyProfile === "others"}
+                            required={false}
                             className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                               : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
@@ -1124,7 +1079,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                           value={formData[key]}
                           onChange={(e) => handleChange(key, e.target.value)}
                           placeholder={label}
-                          required={key === "whatsappNumber" ? !sameAsContact : required}
+                          required={false}
                           pattern={pattern}
                           maxLength={maxLength}
                           disabled={disabled || (key === "contactNumber" && duplicateInfo !== null)}
@@ -1159,31 +1114,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                           <div className="text-xs text-blue-500 mt-1">Checking number...</div>
                         )}
                         
-                        {/* Checkbox for copying contact number to WhatsApp */}
-                        {hasCheckbox && (
-                          <div className="mt-0.5">
-                            <label
-                              className="flex items-center gap-1.5 text-xs cursor-pointer"
-                              tabIndex={0}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  handleSameAsContactChange({
-                                    target: { checked: !sameAsContact }
-                                  });
-                                }
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={sameAsContact}
-                                onChange={handleSameAsContactChange}
-                                className={`rounded h-3.5 w-3.5 ${darkMode ? 'text-[#e2692c] focus:ring-[#e2692c]' : 'text-[#1a5d96] focus:ring-[#1a5d96]'}`}
-                              />
-                              <span className="text-xs">{checkboxLabel}</span>
-                            </label>
-                          </div>
-                        )}
                       </>
                     )}
                   </div>

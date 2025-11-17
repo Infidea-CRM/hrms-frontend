@@ -192,8 +192,8 @@ const EmployeeServices = {
     return requests.post("/candidates/create", body);
   },
 
-  getCandidatesData: async () => {
-    return requests.get("/candidates");
+  getCandidatesData: async (page = 1, limit = 10) => {
+    return requests.get(`/candidates?page=${page}&limit=${limit}`);
   },
 
   updateCandidateData: async (candidateId, body) => {

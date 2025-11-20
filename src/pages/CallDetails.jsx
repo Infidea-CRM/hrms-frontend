@@ -18,7 +18,8 @@ import DatePicker from "react-datepicker";
 import 'react-datepicker/dist/react-datepicker.css';
 import { FaSearch, FaPlus, FaTimesCircle, FaChevronLeft, FaChevronRight, FaUserCheck, FaUpload, FaFileExcel, FaFilter, FaCheck, FaCopy } from "react-icons/fa";
 import { MdError, MdClose, MdExpandMore, MdExpandLess } from "react-icons/md";
-import CandidatesTable from "@/components/candidates/CandidatesTable";
+import CandidatesCard from "@/components/candidates/CandidatesCard";
+import CandidatesCardSkeleton from "@/components/candidates/CandidatesCardSkeleton";
 import CallDetailsViewModal from "@/components/candidates/CallDetailsViewModal";
 import CallDetailsEditModal from "@/components/candidates/CallDetailsEditModal";
 import { Toaster, toast } from 'react-hot-toast';
@@ -85,13 +86,16 @@ const CallDetails = () => {
   const [error, setError] = useState("");
   const [totalCandidates, setTotalCandidates] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  
+  // Add searchTerm state to store the current search input (must be before useEffect that uses it)
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch candidates data with pagination
+  // Fetch candidates data with pagination and search
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
         setLoading(true);
-        const response = await EmployeeServices.getCandidatesData(currentPage, itemsPerPage);
+        const response = await EmployeeServices.getCandidatesData(currentPage, itemsPerPage, searchTerm);
         setApiData(response);
         setTotalCandidates(response?.totalCandidates || 0);
         setTotalPages(response?.totalPages || 0);
@@ -105,7 +109,7 @@ const CallDetails = () => {
     };
 
     fetchCandidates();
-  }, [currentPage, itemsPerPage, refreshKey]);
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm]);
 
   // Map API response to match expected format
   const data = apiData ? { candidates: apiData.candidates || [] } : null;
@@ -158,9 +162,6 @@ const CallDetails = () => {
     setDateRange,
   } = useFilter(data?.candidates);
 
-  // Add searchTerm state to store the current search input
-  const [searchTerm, setSearchTerm] = useState("");
-
   const navigate = useNavigate();
 
   const [duplicityCheckCount, setDuplicityCheckCount] = useState(0);
@@ -202,6 +203,7 @@ const CallDetails = () => {
       candidateRef.current.value = "";
     }
     handleSubmitCandidate("");
+    setSearchTerm(""); // Clear search term to reset backend search
     setDateRange({ startDate: null, endDate: null });
     handleDateRangeTypeChange("day");
     setSortBy("");
@@ -277,8 +279,20 @@ const CallDetails = () => {
       // Set editable property to allow "Try a Call" button to show
       if (response.candidate) {
         response.candidate.editable = true;
-        // Make sure callSummary is properly formatted for the view modal
-        if (response.candidate.callSummary && !Array.isArray(response.candidate.callSummary)) {
+        
+        // Transform callDurationHistory to callSummary if callSummary doesn't exist
+        if (!response.candidate.callSummary || response.candidate.callSummary.length === 0) {
+          if (response.candidate.callDurationHistory && response.candidate.callDurationHistory.length > 0) {
+            // Transform callDurationHistory to callSummary format
+            response.candidate.callSummary = response.candidate.callDurationHistory
+              .filter(item => item.summary) // Only include items with summary
+              .map(item => ({
+                date: item.date || response.candidate.updatedAt || response.candidate.createdAt || new Date(),
+                summary: item.summary
+              }));
+          }
+        } else if (response.candidate.callSummary && !Array.isArray(response.candidate.callSummary)) {
+          // If callSummary exists but is not an array, convert it to array format
           response.candidate.callSummary = [
             { 
               date: response.candidate.updatedAt || response.candidate.createdAt || new Date(), 
@@ -424,8 +438,19 @@ const CallDetails = () => {
       // Set editable property to control "Try a Call" button visibility
       call.editable = true;
       
-      // Make sure callSummary is properly formatted for the view modal
-      if (call.callSummary && !Array.isArray(call.callSummary)) {
+      // Transform callDurationHistory to callSummary if callSummary doesn't exist
+      if (!call.callSummary || call.callSummary.length === 0) {
+        if (call.callDurationHistory && call.callDurationHistory.length > 0) {
+          // Transform callDurationHistory to callSummary format
+          call.callSummary = call.callDurationHistory
+            .filter(item => item.summary) // Only include items with summary
+            .map(item => ({
+              date: item.date || call.updatedAt || call.createdAt || new Date(),
+              summary: item.summary
+            }));
+        }
+      } else if (call.callSummary && !Array.isArray(call.callSummary)) {
+        // If callSummary exists but is not an array, convert it to array format
         call.callSummary = [
           { 
             date: call.updatedAt || call.createdAt || new Date(), 
@@ -469,62 +494,11 @@ const CallDetails = () => {
     setShowBulkUploadModal(false);
   };
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    setBulkUploadFile(selectedFile);
-    setUploadError(null);
-    setUploadResult(null);
-    
-    if (selectedFile) {
-      readExcel(selectedFile);
-    }
-  };
-
-  const readExcel = (file) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        // Map the data to match the expected format
-        const candidates = jsonData.map(row => {
-          // Check for different possible column names
-          const name = row.Name || row.name || row.CANDIDATE_NAME || row.candidate_name || row.CandidateName || '';
-          const mobileNo = row['Contact Number'] || row.Mobile || row.mobile || row.MOBILE || row.Phone || row.phone || row.mobileNo || '';
-          
-          return { name, mobileNo };
-        });
-        
-        // Preview all entries
-        setPreviewData(candidates);
-
-        if (candidates.length === 0) {
-          setUploadError('No data found in the Excel file.');
-        }
-      } catch (error) {
-        console.error('Error reading Excel file:', error);
-        setUploadError('Could not parse the Excel file. Please check the format.');
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  const handleBulkUpload = async () => {
-    if (!bulkUploadFile) {
-      setUploadError('Please select a file first.');
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadError(null);
-    
-    try {
+  // Helper function to parse Excel file and extract candidate data
+  const parseExcelFile = (file) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = async (e) => {
+      reader.onload = (e) => {
         try {
           const data = e.target.result;
           const workbook = XLSX.read(data, { type: 'binary' });
@@ -540,29 +514,67 @@ const CallDetails = () => {
             
             return { name, mobileNo };
           });
-
-          if (candidates.length === 0) {
-            setUploadError('No data found in the Excel file.');
-            setIsUploading(false);
-            return;
-          }
-
-          // Send to backend using existing service
-          const response = await EmployeeServices.bulkUploadCandidates({ candidates });
-          setUploadResult(response);
           
-          // Refresh the table data after successful upload
-          setRefreshKey(prev => prev + 1);
+          resolve(candidates);
         } catch (error) {
-          console.error('Error processing or uploading:', error);
-          setUploadError(error.response?.data?.message || 'Error uploading candidates. Please try again.');
-        } finally {
-          setIsUploading(false);
+          console.error('Error parsing Excel file:', error);
+          reject(new Error('Could not parse the Excel file. Please check the format.'));
         }
       };
-      reader.readAsBinaryString(bulkUploadFile);
-    } catch (err) {
-      setUploadError('Error reading file. Please try again.');
+      reader.onerror = () => reject(new Error('Error reading file. Please try again.'));
+      reader.readAsBinaryString(file);
+    });
+  };
+
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0];
+    setBulkUploadFile(selectedFile);
+    setUploadError(null);
+    setUploadResult(null);
+    
+    if (selectedFile) {
+      try {
+        const candidates = await parseExcelFile(selectedFile);
+        setPreviewData(candidates);
+        
+        if (candidates.length === 0) {
+          setUploadError('No data found in the Excel file.');
+        }
+      } catch (error) {
+        setUploadError(error.message);
+      }
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    if (!bulkUploadFile) {
+      setUploadError('Please select a file first.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+    
+    try {
+      // Reuse the parseExcelFile helper function
+      const candidates = await parseExcelFile(bulkUploadFile);
+
+      if (candidates.length === 0) {
+        setUploadError('No data found in the Excel file.');
+        setIsUploading(false);
+        return;
+      }
+
+      // Send to backend using existing service
+      const response = await EmployeeServices.bulkUploadCandidates({ candidates });
+      setUploadResult(response);
+      
+      // Refresh the table data after successful upload
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error('Error processing or uploading:', error);
+      setUploadError(error.response?.data?.message || error.message || 'Error uploading candidates. Please try again.');
+    } finally {
       setIsUploading(false);
     }
   };
@@ -598,15 +610,26 @@ const CallDetails = () => {
     setIsDragActive(false);
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setBulkUploadFile(e.dataTransfer.files[0]);
+      const selectedFile = e.dataTransfer.files[0];
+      setBulkUploadFile(selectedFile);
       setUploadError(null);
       setUploadResult(null);
-      readExcel(e.dataTransfer.files[0]);
+      
+      try {
+        const candidates = await parseExcelFile(selectedFile);
+        setPreviewData(candidates);
+        
+        if (candidates.length === 0) {
+          setUploadError('No data found in the Excel file.');
+        }
+      } catch (error) {
+        setUploadError(error.message);
+      }
     }
   };
 
@@ -737,7 +760,9 @@ const CallDetails = () => {
   const handleSubmitCandidateWithHighlight = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
-    handleSubmitCandidate(e);
+    // Reset to page 1 when searching
+    setCurrentPage(1);
+    // Note: The useEffect will automatically trigger fetch when searchTerm changes
   };
 
   // Add function to handle copying selected mobile numbers
@@ -1176,155 +1201,83 @@ const CallDetails = () => {
       <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalCandidates || filteredData.length}</span>
 
       {loading ? (
-        // <Loading loading={loading} />
-        <TableLoading row={12} col={6} width={190} height={20} />
+        <CandidatesCardSkeleton count={itemsPerPage} />
       ) : error ? (
-        <span className="text-center mx-auto text-red-500">{error}</span>
+        <span className="text-center mx-auto text-red-500 block py-8">{error}</span>
       ) : serviceData?.length !== 0 ? (
-        <TableContainer className="mb-8">
+        <>
           {filteredData.length === 0 ? (
-            <div className="p-4 text-center text-gray-600 dark:text-gray-400">
-              <p>No calls match your filter criteria.</p>
+            <div className="p-8 text-center text-gray-600 dark:text-gray-400">
+              <p className="mb-4">No calls match your filter criteria.</p>
               <button
                 onClick={handleResetField}
-                className="mt-2 px-3 py-1.5 rounded-md text-sm bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
+                className="px-4 py-2 rounded-md text-sm bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
               >
                 Reset Filters
               </button>
             </div>
-          ) : 
-          (
-            <Table>
-              <TableHeader > 
-                <tr className="h-14 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                <TableCell className="text-center">
-                  <input 
-                    type="checkbox" 
-                    checked={selectAll}
-                    onChange={handleSelectAll}
-                    className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400 cursor-pointer" 
-                  />
-                  </TableCell>
-                  <TableCell className="text-center">
-                  Actions
-                  </TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("lastRegisteredByName")}>Last Registered By {sortBy === "lastRegisteredByName" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("updateddate")}>Updated Date {sortBy === "updateddate" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                   <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("callStatus")}>Status{sortBy === "callStatus" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                   {/* <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("lockedstatus")}>Locked Status {sortBy === "lockedstatus" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell> */}
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("expiry")}>Remaining Days {sortBy === "expiry" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("timespent")}>Time Spent {sortBy === "timespent" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                       <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("name")}>Name {sortBy === "name" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("mobile")}>Contact Number{sortBy === "mobile" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                 
-                               <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("whatsapp")}>WhatsApp Number {sortBy === "whatsapp" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                     <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("qualification")}>Qualification {sortBy === "qualification" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                     <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("location")}>Location {sortBy === "location" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                     <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("locality")}>Locality {sortBy === "locality" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("experience")}>Experience {sortBy === "experience" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("communication")}>Communication {sortBy === "communication" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("profile")}>Profile {sortBy === "profile" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("jobinterestedin")}>Job Interested In {sortBy === "jobinterestedin" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("salaryexpectation")}>Salary Expectation {sortBy === "salaryexpectation" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("shift")}>Shift Preference {sortBy === "shift" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("noticeperiod")}>Notice Period {sortBy === "noticeperiod" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("gender")}>Gender {sortBy === "gender" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("source")}>Source{sortBy === "source" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("callsummary")}>Call Summary {sortBy === "callsummary" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                </tr>
-              </TableHeader>
+          ) : (
+            <>
+              {/* Select All Checkbox - Above Cards */}
+              <div className="mb-4 flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  checked={selectAll}
+                  onChange={handleSelectAll}
+                  className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400 cursor-pointer" 
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Select All ({selectedCandidates.length} selected)
+                </span>
+              </div>
 
-              <CandidatesTable 
+              {/* Cards Grid */}
+              <CandidatesCard 
                 candidates={filteredData}
                 onView={handleView}
                 onEdit={handleEdit}
-                handleDuplicityCheck={handleDuplicityCheck}
                 searchTerm={searchTerm}
                 highlightText={highlightText}
                 selectedCandidates={selectedCandidates}
                 onCandidateSelection={handleCandidateSelection}
               />
-            </Table>
-          )}
-          
-          {/* Pagination controls - at bottom of table */}
-          {filteredData.length > 0 && (
-            <div className="flex justify-center items-center mt-4 mb-4 space-x-2">
-              <button
-                onClick={goToPrevPage}
-                disabled={currentPage === 1}
-                className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
-                  currentPage === 1
-                    ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
-                }`}
-              >
-                <FaChevronLeft className="h-4 w-4" />
-              </button>
               
-              <span className="text-sm text-gray-700 dark:text-gray-300 px-3">
-                Page {currentPage} of {displayTotalPages}
-              </span>
-              
-              <button
-                onClick={goToNextPage}
-                disabled={currentPage === displayTotalPages}
-                className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
-                  currentPage === displayTotalPages
-                    ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
-                }`}
-              >
-                <FaChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+              {/* Pagination controls - at bottom of cards */}
+              {filteredData.length > 0 && (
+                <div className="flex justify-center items-center mt-6 mb-4 space-x-2">
+                  <button
+                    onClick={goToPrevPage}
+                    disabled={currentPage === 1}
+                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
+                      currentPage === 1
+                        ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                    }`}
+                  >
+                    <FaChevronLeft className="h-4 w-4" />
+                  </button>
+                  
+                  <span className="text-sm text-gray-700 dark:text-gray-300 px-3">
+                    Page {currentPage} of {displayTotalPages}
+                  </span>
+                  
+                  <button
+                    onClick={goToNextPage}
+                    disabled={currentPage === displayTotalPages}
+                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
+                      currentPage === displayTotalPages
+                        ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                    }`}
+                  >
+                    <FaChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </>
           )}
-        </TableContainer>
-      ) : candidateRef.current.value != ""||dateRange.startDate != null||dateRange.endDate != null && serviceData?.length === 0 ? (
+        </>
+      ) : ((candidateRef.current?.value !== "" || dateRange.startDate != null || dateRange.endDate != null) && serviceData?.length === 0) ? (
         <div className="p-4 text-center text-gray-600 dark:text-gray-400">
               <p>No calls match your filter criteria.</p>
               <button

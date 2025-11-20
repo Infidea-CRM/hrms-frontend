@@ -55,6 +55,10 @@
   @apply bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-green-600 hover:text-green-700 dark:hover:text-green-400;
 }
 
+.action-button-unlock {
+  @apply bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200;
+}
+
 /* Skeleton Styles */
 .skeleton-card {
   @apply bg-white dark:bg-gray-800 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-700;

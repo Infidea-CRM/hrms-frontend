@@ -243,6 +243,48 @@ const formatCallHistory = (callDurationHistory) => {
           </div>
         </div>
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+          {/* Lock Status Banner */}
+          {call.isLocked && call.lockedBy && (
+            <div className="mb-4 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                    This candidate is currently locked by <span className="font-semibold">{call.lockedBy}</span>
+                    {call.remainingDays !== undefined && (
+                      <span className="ml-1">
+                        ({call.remainingTime || `${call.remainingDays} day${call.remainingDays !== 1 ? 's' : ''}`} remaining)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">
+                    You can view the candidate details but cannot edit them until the lock expires.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Already Registered Banner */}
+          {(call.alreadyInHistory || call.isLastRegisteredBy) && !call.isLocked && (
+            <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    You have already registered this candidate previously.
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+                    You can view the candidate details but cannot mark them again.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="rounded-xl p-5 shadow-lg border bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-4">
               {viewFields.map((field, idx) => {

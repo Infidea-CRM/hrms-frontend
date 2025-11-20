@@ -218,6 +218,10 @@ const EmployeeServices = {
     return requests.get(`/candidates/check-duplicate-input/${mobileNo}`);
   },
 
+  unlockCandidateDuplicacy: async (mobileNo) => {
+    return requests.post(`/candidates/unlock-duplicacy/${mobileNo}`);
+  },
+
   bulkUploadCandidates: async (body) => {
     return requests.post("/candidates/bulk-upload", body);
   },

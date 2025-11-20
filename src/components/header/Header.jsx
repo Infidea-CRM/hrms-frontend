@@ -196,6 +196,16 @@ const Header = () => {
 
               {profileOpen && (
                 <ul className="origin-top-right absolute right-0 mt-2 w-48 md:w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-gray-700 focus:outline-none">
+                  {/* Admin Badge */}
+                  {adminInfo?.isAdmin && (
+                    <li className="px-4 py-2 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-b border-purple-200 dark:border-purple-700">
+                      <div className="flex items-center">
+                        <span className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide">
+                          Admin
+                        </span>
+                      </div>
+                    </li>
+                  )}
                   <li className="px-4 py-3">
                     <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0">

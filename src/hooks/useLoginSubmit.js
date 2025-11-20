@@ -197,6 +197,7 @@ const useLoginSubmit = () => {
                 const enrichedPayload = {
                   ...res,
                   token,
+                  isAdmin: res.isAdmin || false, // Include isAdmin flag
                 };
 
                 await setAdminCookie(enrichedPayload);
@@ -209,8 +210,12 @@ const useLoginSubmit = () => {
                 dispatch({ type: "USER_LOGIN", payload: res });
               }
             } else {
-              // If no encrypted data, dispatch original response
-              dispatch({ type: "USER_LOGIN", payload: res });
+              // If no encrypted data, dispatch original response with isAdmin
+              const payloadWithAdmin = {
+                ...res,
+                isAdmin: res.isAdmin || false,
+              };
+              dispatch({ type: "USER_LOGIN", payload: payloadWithAdmin });
             }
 
             // Reset OTP state
@@ -261,6 +266,7 @@ const useLoginSubmit = () => {
                   const enrichedPayload = {
                     ...res,
                     token,
+                    isAdmin: res.isAdmin || false, // Include isAdmin flag
                   };
 
                   await setAdminCookie(enrichedPayload);
@@ -273,8 +279,12 @@ const useLoginSubmit = () => {
                   dispatch({ type: "USER_LOGIN", payload: res });
                 }
               } else {
-                // If no encrypted data, dispatch original response
-                dispatch({ type: "USER_LOGIN", payload: res });
+                // If no encrypted data, dispatch original response with isAdmin
+                const payloadWithAdmin = {
+                  ...res,
+                  isAdmin: res.isAdmin || false,
+                };
+                dispatch({ type: "USER_LOGIN", payload: payloadWithAdmin });
               }
 
               // Redirect to the intended page or dashboard

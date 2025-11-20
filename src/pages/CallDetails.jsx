@@ -3,6 +3,10 @@ import {
   TableCell,
   TableContainer,
   TableHeader,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  Button,
 } from "@windmill/react-ui";
 import React, { useState, useContext, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
@@ -14,9 +18,10 @@ import useFilter from "@/hooks/useFilter";
 import EmployeeServices from "@/services/EmployeeServices";
 import AnimatedContent from "@/components/common/AnimatedContent";
 import { SidebarContext } from "@/context/SidebarContext";
+import { AdminContext } from "@/context/AdminContext";
 import DatePicker from "react-datepicker";  
 import 'react-datepicker/dist/react-datepicker.css';
-import { FaSearch, FaPlus, FaTimesCircle, FaChevronLeft, FaChevronRight, FaUserCheck, FaUpload, FaFileExcel, FaFilter, FaCheck, FaCopy } from "react-icons/fa";
+import { FaSearch, FaPlus, FaTimesCircle, FaChevronLeft, FaChevronRight, FaUserCheck, FaUpload, FaFileExcel, FaFilter, FaCheck, FaCopy, FaUnlock } from "react-icons/fa";
 import { MdError, MdClose, MdExpandMore, MdExpandLess } from "react-icons/md";
 import CandidatesCard from "@/components/candidates/CandidatesCard";
 import CandidatesCardSkeleton from "@/components/candidates/CandidatesCardSkeleton";
@@ -62,6 +67,9 @@ const CallDetails = () => {
   const [mobileError, setMobileError] = useState("");
   const [checkingDuplicity, setCheckingDuplicity] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [candidateToUnlock, setCandidateToUnlock] = useState(null);
+  const [unlocking, setUnlocking] = useState(false);
   
   // Bulk upload state
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
@@ -79,6 +87,9 @@ const CallDetails = () => {
   const [activeFilterColumn, setActiveFilterColumn] = useState(null);
 
   const { setIsUpdate } = useContext(SidebarContext);
+  const { state } = useContext(AdminContext);
+  const { adminInfo } = state;
+  const isAdmin = adminInfo?.isAdmin || false;
 
   // State for API data with pagination
   const [apiData, setApiData] = useState(null);
@@ -276,40 +287,168 @@ const CallDetails = () => {
     try {
       const response = await EmployeeServices.checkDuplicityofInputField(number);
 
-      // Set editable property to allow "Try a Call" button to show
-      if (response.candidate) {
-        response.candidate.editable = true;
+      // Handle candidate data - now always returns data even if locked
+      // Check both response.candidate and response.data.candidate (in case of nested structure)
+      // Also handle case where response itself might be the candidate object
+      const candidateData = response?.candidate || response?.data?.candidate || (response?._id ? response : null);
+      const isLocked = response?.isLocked !== undefined ? response.isLocked : (response?.data?.isLocked || false);
+      const lockedBy = response?.lockedBy || response?.data?.lockedBy || null;
+      const remainingDays = response?.remainingDays !== undefined ? response.remainingDays : (response?.data?.remainingDays || 0);
+      const remainingTime = response?.remainingTime || response?.data?.remainingTime || null;
+      const alreadyInHistory = response?.alreadyInHistory !== undefined ? response.alreadyInHistory : (response?.data?.alreadyInHistory || false);
+      const isLastRegisteredBy = response?.isLastRegisteredBy !== undefined ? response.isLastRegisteredBy : (response?.data?.isLastRegisteredBy || false);
+
+      if (candidateData) {
+        // Create a copy of candidateData to avoid mutating the original response
+        const candidate = { ...candidateData };
+        
+        // Use editable from response (set by backend based on lock status)
+        // editable will be false if locked by someone else, true if not locked or locked by current user
+        
+        // Add lock and registration status flags to candidate object for modal display
+        candidate.isLocked = isLocked;
+        candidate.lockedBy = lockedBy;
+        candidate.remainingDays = remainingDays;
+        candidate.remainingTime = remainingTime;
+        candidate.alreadyInHistory = alreadyInHistory;
+        candidate.isLastRegisteredBy = isLastRegisteredBy;
+        
+        // Ensure editable property is set (from backend response or default)
+        candidate.editable = candidateData.editable !== undefined ? candidateData.editable : (!isLocked && !alreadyInHistory && !isLastRegisteredBy);
         
         // Transform callDurationHistory to callSummary if callSummary doesn't exist
-        if (!response.candidate.callSummary || response.candidate.callSummary.length === 0) {
-          if (response.candidate.callDurationHistory && response.candidate.callDurationHistory.length > 0) {
+        if (!candidate.callSummary || candidate.callSummary.length === 0) {
+          if (candidate.callDurationHistory && candidate.callDurationHistory.length > 0) {
             // Transform callDurationHistory to callSummary format
-            response.candidate.callSummary = response.candidate.callDurationHistory
-              .filter(item => item.summary) // Only include items with summary
+            candidate.callSummary = candidate.callDurationHistory
+              .filter(item => item && item.summary) // Only include items with summary
               .map(item => ({
-                date: item.date || response.candidate.updatedAt || response.candidate.createdAt || new Date(),
+                date: item.date || candidate.updatedAt || candidate.createdAt || new Date(),
                 summary: item.summary
               }));
+          } else {
+            candidate.callSummary = [];
           }
-        } else if (response.candidate.callSummary && !Array.isArray(response.candidate.callSummary)) {
+        } else if (candidate.callSummary && !Array.isArray(candidate.callSummary)) {
           // If callSummary exists but is not an array, convert it to array format
-          response.candidate.callSummary = [
+          candidate.callSummary = [
             { 
-              date: response.candidate.updatedAt || response.candidate.createdAt || new Date(), 
-              summary: response.candidate.callSummary 
+              date: candidate.updatedAt || candidate.createdAt || new Date(), 
+              summary: candidate.callSummary 
             }
           ];
         }
+
+        // Set duplicate info for UI display based on lock or registration status
+        if (isLocked && lockedBy) {
+          const timeInfo = remainingTime ? remainingTime : `${remainingDays} days`;
+          toast(`Candidate is locked by ${lockedBy} for ${timeInfo}. Viewing in read-only mode.`, {
+            icon: 'ℹ️',
+            duration: 4000,
+          });
+          
+          setDuplicateInfo({
+            lockedBy: lockedBy,
+            remainingTime: timeInfo,
+            alreadyRegistered: false
+          });
+        } else if (alreadyInHistory || isLastRegisteredBy) {
+          toast("You have already registered this candidate. Viewing in read-only mode.", {
+            icon: 'ℹ️',
+            duration: 4000,
+          });
+          
+          setDuplicateInfo({
+            lockedBy: null,
+            remainingTime: null,
+            alreadyRegistered: true
+          });
+        } else {
+          // Clear duplicate info if not locked and not already registered
+          setDuplicateInfo(null);
+        }
+
+        // Open modal with candidate data
+        setShowViewModal(true);
+        setSelectedCall(candidate);
+      } else {
+        toast.error("Candidate data not found in response");
       }
 
-      setShowViewModal(true);
-      setSelectedCall(response.candidate);
-
     } catch (error) {
-      
+      // Check if error has response data (HTTP error)
       if (error.response && error.response.data) {
+        const errorData = error.response.data;
+        
+        // Check if candidate data is present in error response (some APIs return data with error status)
+        if (errorData.candidate) {
+          // Create a copy of candidate data
+          const candidate = { ...errorData.candidate };
+          
+          // Add lock and registration status flags to candidate object for modal display
+          candidate.isLocked = errorData.isLocked || false;
+          candidate.lockedBy = errorData.lockedBy || null;
+          candidate.remainingDays = errorData.remainingDays || 0;
+          candidate.remainingTime = errorData.remainingTime || null;
+          candidate.alreadyInHistory = errorData.alreadyInHistory || false;
+          candidate.isLastRegisteredBy = errorData.isLastRegisteredBy || false;
+          candidate.editable = candidate.editable !== undefined ? candidate.editable : (!candidate.isLocked && !candidate.alreadyInHistory && !candidate.isLastRegisteredBy);
+      
+          // Transform callDurationHistory to callSummary if callSummary doesn't exist
+          if (!candidate.callSummary || candidate.callSummary.length === 0) {
+            if (candidate.callDurationHistory && candidate.callDurationHistory.length > 0) {
+              candidate.callSummary = candidate.callDurationHistory
+                    .filter(item => item && item.summary)
+                .map(item => ({
+                  date: item.date || candidate.updatedAt || candidate.createdAt || new Date(),
+                  summary: item.summary
+                }));
+            } else {
+              candidate.callSummary = [];
+            }
+          } else if (candidate.callSummary && !Array.isArray(candidate.callSummary)) {
+            candidate.callSummary = [
+              { 
+                date: candidate.updatedAt || candidate.createdAt || new Date(), 
+                summary: candidate.callSummary 
+              }
+            ];
+          }
+
+          // Set duplicate info for locked or already registered candidates
+          if (candidate.isLocked && candidate.lockedBy) {
+            const timeInfo = candidate.remainingTime ? candidate.remainingTime : `${candidate.remainingDays} days`;
+            setDuplicateInfo({
+              lockedBy: candidate.lockedBy,
+              remainingTime: timeInfo,
+              alreadyRegistered: false
+            });
+            toast(`Candidate is locked by ${candidate.lockedBy} for ${timeInfo}. Viewing in read-only mode.`, {
+              icon: 'ℹ️',
+              duration: 4000,
+            });
+          } else if (candidate.alreadyInHistory || candidate.isLastRegisteredBy) {
+            setDuplicateInfo({
+              lockedBy: null,
+              remainingTime: null,
+              alreadyRegistered: true
+            });
+            toast("You have already registered this candidate. Viewing in read-only mode.", {
+              icon: 'ℹ️',
+              duration: 4000,
+            });
+          } else {
+            setDuplicateInfo(null);
+          }
+
+          // Show modal with candidate data
+          setShowViewModal(true);
+          setSelectedCall(candidate);
+          return; // Exit early since we handled the data
+        }
+
         // Candidate not found
-        if (error.response.status === 404 && error.response.data.message === "Candidate not found") {
+        if (error.response.status === 404 && errorData.message === "Candidate not found") {
           // Redirect to call-info and prefill the number
           navigate("/call-info", {
             state: { prefillNumber: number }
@@ -317,24 +456,11 @@ const CallDetails = () => {
           return;
         }
         
-        // Show error for all checks in case of duplicity
-        if (error.response.data.lockedBy) {
-          const { lockedBy, remainingDays, remainingTime } = error.response.data;
-          const timeInfo = remainingTime ? remainingTime : `${remainingDays} days`;
-          
-          // Set duplicate info for UI display
-          setDuplicateInfo({
-            lockedBy,
-            remainingTime: timeInfo
-          });
-          
-          // Also show toast for better visibility
-          toast.error(`Candidate already locked by ${lockedBy} for ${timeInfo}`);
-        } else {
-          toast.error(error.response.data.message || "An error occurred");
-        }
+        // Handle other errors only if no candidate data was found
+        toast.error(errorData.message || "An error occurred while checking duplicity");
       } else {
-        toast.error("An error occurred while checking duplicity");
+        // Network error or other non-HTTP error
+        toast.error(error.message || "An error occurred while checking duplicity. Please check your connection and try again.");
       }
     } finally {
       setCheckingDuplicity(false);
@@ -386,7 +512,6 @@ const CallDetails = () => {
         
         // Ensure values is an array
         if (!Array.isArray(values)) {
-          console.warn(`Filter values for ${key} is not an array:`, values);
           continue;
         }
         
@@ -394,17 +519,6 @@ const CallDetails = () => {
         const matches = values.some(value => {
           const normalizedItemValue = String(itemValue).trim().toLowerCase();
           const normalizedFilterValue = String(value).toLowerCase();
-          
-          // Debug logging for shift
-          if (key === 'shift') {
-            console.log('Comparing shift values:', {
-              itemValue,
-              normalizedItemValue,
-              normalizedFilterValue,
-              matches: normalizedItemValue === normalizedFilterValue
-            });
-          }
-          
           return normalizedItemValue === normalizedFilterValue;
         });
         
@@ -475,6 +589,44 @@ const CallDetails = () => {
     setShowEditModal(false);
     // Refresh the table data
     setRefreshKey(prev => prev + 1);
+  };
+
+  const handleUnlockDuplicacy = (candidate) => {
+    if (!candidate || !candidate.mobileNo) {
+      toast.error("Invalid candidate data");
+      return;
+    }
+    setCandidateToUnlock(candidate);
+    setShowUnlockModal(true);
+  };
+
+  const confirmUnlockDuplicacy = async () => {
+    if (!candidateToUnlock || !candidateToUnlock.mobileNo) {
+      toast.error("Invalid candidate data");
+      setShowUnlockModal(false);
+      return;
+    }
+
+    setUnlocking(true);
+    try {
+      await EmployeeServices.unlockCandidateDuplicacy(candidateToUnlock.mobileNo);
+      toast.success("Candidate duplicacy unlocked successfully");
+      setShowUnlockModal(false);
+      setCandidateToUnlock(null);
+      // Refresh the table data
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to unlock candidate duplicacy");
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const closeUnlockModal = () => {
+    if (!unlocking) {
+      setShowUnlockModal(false);
+      setCandidateToUnlock(null);
+    }
   };
 
   const navigateToCallInfo = () => {
@@ -902,7 +1054,10 @@ const CallDetails = () => {
                   <div className="text-xs text-red-500 flex items-center">
                     <MdError className="mr-1" />
                     <span>
-                      Candidate already locked by {duplicateInfo.lockedBy} for {duplicateInfo.remainingTime}
+                      {duplicateInfo.alreadyRegistered 
+                        ? "You have already registered this candidate previously."
+                        : `Candidate already locked by ${duplicateInfo.lockedBy} for ${duplicateInfo.remainingTime}`
+                      }
                       {duplicityCheckCount > 0 && ` (${duplicityCheckCount}/3 checks used)`}
                     </span>
                   </div>
@@ -1240,6 +1395,8 @@ const CallDetails = () => {
                 highlightText={highlightText}
                 selectedCandidates={selectedCandidates}
                 onCandidateSelection={handleCandidateSelection}
+                onUnlockDuplicacy={handleUnlockDuplicacy}
+                isAdmin={isAdmin}
               />
               
               {/* Pagination controls - at bottom of cards */}
@@ -1581,6 +1738,41 @@ const CallDetails = () => {
           </div>
         </div>
       )}
+
+      {/* Unlock Duplicacy Confirmation Modal */}
+      <Modal isOpen={showUnlockModal} onClose={closeUnlockModal}>
+        <ModalBody className="text-center custom-modal px-8 pt-6 pb-4">
+          <span className="flex justify-center text-3xl mb-6 text-amber-500">
+            <FaUnlock />
+          </span>
+          <h2 className="text-xl font-medium mb-1">
+            Are you sure you want to unlock duplicacy for{" "}
+            <span className="text-amber-600 dark:text-amber-400 font-semibold">
+              {candidateToUnlock?.name || candidateToUnlock?.mobileNo || "this candidate"}
+            </span>?
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            This will remove the lock and allow other employees to register this candidate again.
+          </p>
+        </ModalBody>
+        <ModalFooter className="justify-center">
+          <Button
+            className="w-full sm:w-auto hover:bg-white hover:border-gray-50"
+            layout="outline"
+            onClick={closeUnlockModal}
+            disabled={unlocking}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmUnlockDuplicacy} 
+            className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white"
+            disabled={unlocking}
+          >
+            {unlocking ? "Unlocking..." : "Yes, Unlock"}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </>
   );
 };

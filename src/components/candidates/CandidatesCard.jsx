@@ -1,4 +1,4 @@
-import { FaEdit, FaEye, FaPhoneAlt, FaWhatsapp } from "react-icons/fa";
+import { FaEdit, FaEye, FaPhoneAlt, FaWhatsapp, FaUnlock } from "react-icons/fa";
 import { MdInfo, MdLocationOn, MdWork, MdSchool, MdAccessTime } from "react-icons/md";
 import { formatLongDateAndTime } from "@/utils/dateFormatter";
 import { getStatusColorClass } from "@/utils/optionsData";
@@ -12,6 +12,8 @@ const CandidatesCard = ({
   highlightText,
   selectedCandidates = [],
   onCandidateSelection,
+  onUnlockDuplicacy,
+  isAdmin = false,
 }) => {
   // Use a wrapper function that handles null/undefined status values
   const getStatusColor = (status) => {
@@ -173,6 +175,18 @@ const CandidatesCard = ({
                         title="Edit"
                       >
                         <FaEdit className="w-4 h-4" />
+                      </button>
+                    )}
+                    {isAdmin && (candidate?.isLocked || candidate?.alreadyInHistory || candidate?.isLastRegisteredBy) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUnlockDuplicacy(candidate);
+                        }}
+                        className="action-button action-button-unlock"
+                        title="Unlock Duplicacy"
+                      >
+                        <FaUnlock className="w-4 h-4" />
                       </button>
                     )}
                   </div>

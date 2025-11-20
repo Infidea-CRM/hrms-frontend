@@ -1,0 +1,78 @@
+.candidate-card {
+  @apply bg-white dark:bg-gray-800 rounded-xl shadow-md border-2 transition-all duration-300 hover:shadow-xl;
+}
+
+.candidate-card.selected {
+  @apply border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20;
+}
+
+.candidate-card:not(.selected) {
+  @apply border-gray-200 dark:border-gray-700;
+}
+
+.profile-avatar {
+  @apply w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg;
+  transition: transform 0.2s ease;
+}
+
+.profile-avatar:hover {
+  transform: scale(1.05);
+}
+
+.card-content-grid {
+  @apply grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3;
+}
+
+.info-item {
+  @apply flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300;
+}
+
+.info-item-icon {
+  @apply w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0;
+}
+
+.info-item-text {
+  @apply cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors;
+}
+
+.status-badge {
+  @apply px-2.5 py-1 text-xs rounded-full font-medium;
+}
+
+.time-badge {
+  @apply text-xs rounded-full font-medium px-2.5 py-1;
+}
+
+.action-button {
+  @apply p-2 rounded-full transition-colors;
+}
+
+.action-button-view {
+  @apply bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-blue-600 hover:text-blue-700 dark:hover:text-blue-400;
+}
+
+.action-button-edit {
+  @apply bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-green-600 hover:text-green-700 dark:hover:text-green-400;
+}
+
+/* Skeleton Styles */
+.skeleton-card {
+  @apply bg-white dark:bg-gray-800 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-700;
+}
+
+.skeleton-avatar {
+  @apply w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse;
+}
+
+.skeleton-line {
+  @apply h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse;
+}
+
+.skeleton-line-sm {
+  @apply h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse;
+}
+
+.skeleton-badge {
+  @apply h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse;
+}
+

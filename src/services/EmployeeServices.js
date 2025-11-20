@@ -192,8 +192,9 @@ const EmployeeServices = {
     return requests.post("/candidates/create", body);
   },
 
-  getCandidatesData: async (page = 1, limit = 10) => {
-    return requests.get(`/candidates?page=${page}&limit=${limit}`);
+  getCandidatesData: async (page = 1, limit = 10, search = "") => {
+    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
+    return requests.get(`/candidates?page=${page}&limit=${limit}${searchParam}`);
   },
 
   updateCandidateData: async (candidateId, body) => {

@@ -1,9 +1,61 @@
 import { formatLongDate, formatLongDateAndTime } from "@/utils/dateFormatter";
 import { FaPhoneAlt } from "react-icons/fa";
 import { MdInfo } from "react-icons/md";
+import { useEffect, useRef } from "react";
+import PropTypes from "prop-types";
 
 const CallDetailsViewModal = ({ call, onClose, onTryCall }) => {
-  
+  const modalRef = useRef(null);
+  const closeButtonRef = useRef(null);
+
+  // Focus management for accessibility
+  useEffect(() => {
+    // Focus the close button when modal opens
+    if (closeButtonRef.current) {
+      closeButtonRef.current.focus();
+    }
+
+    // Trap focus within modal
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = modalRef.current?.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      
+      if (!focusableElements || focusableElements.length === 0) return;
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          lastElement.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          firstElement.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    // Handle Escape key
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleTabKey);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('keydown', handleTabKey);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
 
   // Helper function to get status color
   const getStatusColorClass = (status) => {
@@ -49,19 +101,35 @@ const formatCallHistory = (callDurationHistory) => {
   if (!callDurationHistory || callDurationHistory.length === 0) return "No call history";
   
   // Sort the call history to show latest calls at the top (descending order by date)
-  const sortedHistory = [...callDurationHistory].sort((a, b) => 
-    new Date(b.date) - new Date(a.date)
-  );
+  const sortedHistory = [...callDurationHistory].sort((a, b) => {
+    const dateA = a.date ? new Date(a.date) : new Date(0);
+    const dateB = b.date ? new Date(b.date) : new Date(0);
+    return dateB - dateA;
+  });
   
-  return sortedHistory.sort((a, b) => new Date(b.date) - new Date(a.date)).map((call, index) => (
-    `Call ${callDurationHistory.length - index}: ${call.duration<=1?`${call.duration} minute`:`${call.duration} minutes`} (${formatLongDateAndTime(call.date)})`
-  )).join('\n');
+  return sortedHistory.map((call, index) => {
+    const duration = call.duration || 0;
+    const durationText = duration <= 1 ? `${duration} minute` : `${duration} minutes`;
+    const dateText = call.date ? formatLongDateAndTime(call.date) : 'Date not available';
+    return `Call ${sortedHistory.length - index}: ${durationText} (${dateText})`;
+  }).join('\n');
 };
 
   const formatCallSummary = (callSummary) => {
     if (!callSummary || callSummary.length === 0) return "No call summary";
     
-    return callSummary?.sort((a, b) => new Date(b.date) - new Date(a.date)).map((call) => `${formatLongDateAndTime(call.date)} - ${call.summary}`).join('\n');
+    // Sort by date (newest first) with null checks
+    const sortedSummary = [...callSummary].sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      return dateB - dateA;
+    });
+    
+    return sortedSummary.map((call) => {
+      const dateText = call.date ? formatLongDateAndTime(call.date) : 'Date not available';
+      const summaryText = call.summary || 'No summary';
+      return `${dateText} - ${summaryText}`;
+    }).join('\n');
   };
 
 
@@ -78,18 +146,12 @@ const formatCallHistory = (callDurationHistory) => {
         <div className="flex items-center space-x-1">
           <span>{field.value}</span>
           {call.employeeCallHistory && call.employeeCallHistory.length > 0 && (
-             <div className="static inline-block">
-             <MdInfo className="w-3.5 h-3.5 text-blue-500 cursor-help hover:text-blue-700" 
-               onMouseEnter={(e) => {
-                 const tooltip = e.currentTarget.nextElementSibling;
-                 if (tooltip) tooltip.classList.remove('hidden');
-               }}
-               onMouseLeave={(e) => {
-                 const tooltip = e.currentTarget.nextElementSibling;
-                 if (tooltip) tooltip.classList.add('hidden');
-               }}
+             <div className="relative inline-block group">
+             <MdInfo 
+               className="w-3.5 h-3.5 text-blue-500 cursor-help hover:text-blue-700" 
+               aria-label="Call history details"
              />
-             <div className="hidden absolute z-[9999] w-64 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg transform -translate-x-1/2  text-left">
+             <div className="hidden group-hover:block absolute left-full ml-2 top-1/2 transform -translate-y-1/2 z-[9999] w-64 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg text-left">
                <div className="text-xs font-medium text-gray-800 dark:text-gray-200 whitespace-pre-line overflow-y-auto max-h-40">
                  {formatCallHistory(call.employeeCallHistory)}
                </div>
@@ -137,10 +199,26 @@ const formatCallHistory = (callDurationHistory) => {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="relative max-w-7xl mx-auto p-6 pr-8 rounded-xl shadow-lg w-full bg-white dark:bg-gray-800" style={{ maxHeight: '90vh', overflow: 'hidden' }}>
+    <div 
+      className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center p-4"
+      onClick={(e) => {
+        // Close modal when clicking backdrop
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="call-details-title"
+    >
+      <div 
+        ref={modalRef}
+        className="relative max-w-7xl mx-auto p-6 pr-8 rounded-xl shadow-lg w-full bg-white dark:bg-gray-800" 
+        style={{ maxHeight: '90vh', overflow: 'hidden' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-[#1a5d96] dark:text-[#e2692c]">Call Details</h2>
+          <h2 id="call-details-title" className="text-2xl font-bold text-[#1a5d96] dark:text-[#e2692c]">Call Details</h2>
           <div className="flex items-center gap-3">
             {call.editable && (
               <button 
@@ -153,9 +231,10 @@ const formatCallHistory = (callDurationHistory) => {
               </button>
             )}
             <button 
+              ref={closeButtonRef}
               onClick={onClose} 
               className="flex items-center justify-center w-10 h-10 rounded-full transition-colors text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700"
-              aria-label="Close"
+              aria-label="Close modal"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -191,6 +270,48 @@ const formatCallHistory = (callDurationHistory) => {
       </div>
     </div>
   );
+};
+
+CallDetailsViewModal.propTypes = {
+  call: PropTypes.shape({
+    name: PropTypes.string,
+    mobileNo: PropTypes.string,
+    whatsappNo: PropTypes.string,
+    source: PropTypes.string,
+    gender: PropTypes.string,
+    experience: PropTypes.string,
+    qualification: PropTypes.string,
+    passingYear: PropTypes.string,
+    state: PropTypes.string,
+    city: PropTypes.string,
+    locality: PropTypes.string,
+    companyProfile: PropTypes.string,
+    jobInterestedIn: PropTypes.string,
+    salaryExpectation: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    communication: PropTypes.string,
+    noticePeriod: PropTypes.string,
+    workMode: PropTypes.string,
+    shift: PropTypes.string,
+    relocation: PropTypes.string,
+    createdAt: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+    callStatus: PropTypes.string,
+    walkinDate: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+    lineupCompany: PropTypes.string,
+    lineupProcess: PropTypes.string,
+    lineupDate: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+    interviewDate: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+    employeeCallHistory: PropTypes.arrayOf(PropTypes.shape({
+      date: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+      duration: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+    })),
+    callSummary: PropTypes.arrayOf(PropTypes.shape({
+      date: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+      summary: PropTypes.string
+    })),
+    editable: PropTypes.bool
+  }),
+  onClose: PropTypes.func.isRequired,
+  onTryCall: PropTypes.func
 };
 
 export default CallDetailsViewModal; 

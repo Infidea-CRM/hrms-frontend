@@ -51,6 +51,7 @@ import {
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Cookies from "js-cookie";
+import { Modal } from "antd";
 
 function CallInfo() {
   const location = useLocation();
@@ -69,6 +70,10 @@ function CallInfo() {
   const [duplicateInfo, setDuplicateInfo] = useState(null);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [formSavedTimestamp, setFormSavedTimestamp] = useState(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const isResettingRef = useRef(false);
+  const [formKey, setFormKey] = useState(0); // Key to force form re-render
   
   // New state variables for dropdown data
   const [qualifications, setQualifications] = useState([]);
@@ -87,8 +92,8 @@ function CallInfo() {
   // Add a new state for filtered process options
   const [filteredProcessOptions, setFilteredProcessOptions] = useState([{ value: "", label: "Select Process" }]);
 
-  // Move formData declaration here, before any useEffects that reference it
-  const [formData, setFormData] = useState({
+  // Initial form data - used for reset and initial state
+  const initialFormData = {
     candidateName: "",
     source: "",
     gender: "",
@@ -124,7 +129,10 @@ function CallInfo() {
     walkinRemarks: "",
     workMode: "Work From Home",
     jobInterestedIn: ""
-  });
+  };
+
+  // Move formData declaration here, before any useEffects that reference it
+  const [formData, setFormData] = useState(initialFormData);
 
   // Add this after your formData state initialization
   const [minDate] = useState(new Date());
@@ -138,6 +146,8 @@ function CallInfo() {
 
   // Load form data from localStorage on component mount
   useEffect(() => {
+    if (isResettingRef.current) return;
+    
     const savedForm = localStorage.getItem('callInfoFormData');
     const savedTimestamp = localStorage.getItem('callInfoFormTimestamp');
     
@@ -163,7 +173,10 @@ function CallInfo() {
 
   // Save form data to localStorage whenever it changes
   useEffect(() => {
-    // Don't save if form is empty (initial load)
+    // Don't save if we're resetting or if form is empty (initial load)
+    if (isResettingRef.current) {
+      return;
+    }
     if (formData.candidateName || formData.contactNumber) {
       const timestamp = new Date().getTime();
       localStorage.setItem('callInfoFormData', JSON.stringify(formData));
@@ -256,6 +269,8 @@ function CallInfo() {
 
   // Fetch cities when state changes
   useEffect(() => {
+    if (isResettingRef.current) return;
+    
     const fetchCities = async () => {
       if (!formData.state) {
         setCities([]);
@@ -294,8 +309,10 @@ function CallInfo() {
 
   // Fetch localities when city is set to Indore
   useEffect(() => {
+    if (isResettingRef.current) return;
+    
     const fetchLocalities = async () => {
-      if (formData.city.toLowerCase() !== "indore") {
+      if (!formData.city || formData.city.toLowerCase() !== "indore") {
         setLocalities([]);
         return;
       }
@@ -327,6 +344,8 @@ function CallInfo() {
 
   // Add useEffect to update process options when company changes
   useEffect(() => {
+    if (isResettingRef.current) return;
+    
     setFilteredProcessOptions(getProcessesByCompany(formData.lineupCompany));
     
     // Reset process selection when company changes (unless it's already a valid option)
@@ -337,6 +356,8 @@ function CallInfo() {
 
   // Add another useEffect to update process options when JD reference company changes
   useEffect(() => {
+    if (isResettingRef.current) return;
+    
     setFilteredProcessOptions(getProcessesByCompany(formData.jdReferenceCompany || formData.lineupCompany));
     
     // Reset process selection when company changes (unless it's already a valid option)
@@ -486,55 +507,32 @@ function CallInfo() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-
-  // Reset form function
-  const resetForm = () => {
-    if (window.confirm("Are you sure you want to reset the form? All data will be lost.")) {
-      setFormData({
-        candidateName: "",
-        source: "",
-        gender: "",
-        contactNumber: "",
-        whatsappNumber: "",
-        experience: "",
-        qualification: "",
-        passingYear: "",
-        pursuingIn: "",
-        state: "",
-        city: "",
-        locality: "",
-        salaryExpectations: "",
-        levelOfCommunication: "",
-        noticePeriod: "Immediate Joiner",
-        shiftPreference: "Any Shift Works",
-        relocation: "",
-        companyProfile: "",
-        callStatus: "",
-        callSummary: "-",
-        callDuration: "1",
-        jdReferenceCompany: "",
-        jdReferenceProcess: "",
-        lineupCompany: "",
-        customLineupCompany: "",
-        lineupProcess: "",
-        customLineupProcess: "",
-        lineupDate: "",
-        interviewDate: "",
-        walkinDate: "",
-        lineupRemarks: "",
-        walkinRemarks: "",
-        workMode: "Work From Home",
-        jobInterestedIn: ""
-      });
-      setSameAsContact(true);
-      setDuplicateInfo(null);
-      setPhoneError("");
-      
-      // Clear localStorage
-      localStorage.removeItem('callInfoFormData');
-      localStorage.removeItem('callInfoFormTimestamp');
-      setFormSavedTimestamp(null);
-    }
+  // Reset form function - optimized and shortened
+  const resetForm = async () => {
+    setIsResetting(true);
+    isResettingRef.current = true;
+    
+    // Clear localStorage and reset all dependent states
+    localStorage.removeItem('callInfoFormData');
+    localStorage.removeItem('callInfoFormTimestamp');
+    setCities([]);
+    setLocalities([]);
+    setFilteredProcessOptions([{ value: "", label: "Select Process" }]);
+    setDuplicateInfo(null);
+    setPhoneError("");
+    setFormSavedTimestamp(null);
+    
+    // Reset form data
+    setFormData(initialFormData);
+    
+    // Wait for useEffects to process and be blocked
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Force form re-render and cleanup
+    setFormKey(prev => prev + 1);
+    isResettingRef.current = false;
+    setIsResetting(false);
+    setShowResetModal(false);
   };
 
   const handleSubmit = async (e) => {
@@ -606,43 +604,7 @@ function CallInfo() {
       notifySuccess(response?.message||response?.error);
 
       // Reset form data after submission
-      setFormData({
-        candidateName: "",
-        source: "",
-        gender: "",
-        contactNumber: "",
-        whatsappNumber: "",
-        experience: "",
-        qualification: "",
-        passingYear: "",
-        pursuingIn: "",
-        state: "",
-        city: "",
-        locality: "",
-        salaryExpectations: "",
-        levelOfCommunication: "",
-        noticePeriod: "Immediate Joiner",
-        shiftPreference: "Any Shift Works",
-        relocation: "",
-        companyProfile: "",
-        callStatus: "",
-        callSummary: "-",
-        callDuration: "1",
-        jdReferenceCompany: "",
-        jdReferenceProcess: "",
-        lineupCompany: "",
-        customLineupCompany: "",
-        lineupProcess: "",
-        customLineupProcess: "",
-        lineupDate: "",
-        interviewDate: "",
-        walkinDate: "",
-        lineupRemarks: "",
-        walkinRemarks: "",
-        workMode: "Work From Home",
-        jobInterestedIn: ""
-      });
-      setSameAsContact(true);
+      setFormData(initialFormData);
       
       // Clear localStorage
       localStorage.removeItem('callInfoFormData');
@@ -1233,7 +1195,7 @@ function CallInfo() {
             
             <button
               type="button"
-              onClick={resetForm}
+              onClick={() => setShowResetModal(true)}
               className={`h-10 px-3 py-0 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-md text-sm flex items-center gap-1.5 transition-colors whitespace-nowrap flex-1 sm:flex-initial justify-center`}
               style={{ minWidth: 'fit-content' }}
               title="Reset form"
@@ -1288,7 +1250,37 @@ function CallInfo() {
         {/* Show client modal when button is clicked */}
         {showClientModal && <ClientModal />}
 
-        <form id="call-info-form" onSubmit={handleSubmit} className="flex-1 overflow-auto">
+        {/* Reset Confirmation Modal */}
+        <Modal
+          title="Reset Form"
+          open={showResetModal}
+          onOk={resetForm}
+          onCancel={() => !isResetting && setShowResetModal(false)}
+          okText={isResetting ? "Resetting..." : "Yes"}
+          cancelText="No"
+          okButtonProps={{
+            danger: true,
+            loading: isResetting,
+            disabled: isResetting,
+            className: darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'
+          }}
+          cancelButtonProps={{
+            disabled: isResetting
+          }}
+          closable={!isResetting}
+          maskClosable={!isResetting}
+        >
+          {isResetting ? (
+            <div className="flex items-center gap-3">
+              <Loader size="20" speed="1.75" />
+              <p>Resetting form data...</p>
+            </div>
+          ) : (
+            <p>Are you sure you want to reset form data? All data will be lost.</p>
+          )}
+        </Modal>
+
+        <form key={formKey} id="call-info-form" onSubmit={handleSubmit} className="flex-1 overflow-auto">
           {/* All fields in a grid layout */}
           <div className="rounded-lg p-3 sm:p-4 shadow-md border dark:bg-gray-800 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-3 sm:gap-x-4 gap-y-3">

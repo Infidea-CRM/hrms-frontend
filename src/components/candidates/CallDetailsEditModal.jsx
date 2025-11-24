@@ -28,18 +28,15 @@ import EmployeeServices from "@/services/EmployeeServices";
 import { notifySuccess, notifyError } from "@/utils/toast";
 import Loader from "../sprinkleLoader/Loader";
 import { 
-  companyOptions,
-  processOptions,
+  companyOptions as lineupCompanyOptions,
   getProcessesByCompany,
   callStatusOptions,
   experienceOptions,
   genderOptions,
   communicationOptions,
   shiftPreferenceOptions,
-  noticePeriodOptions,
-  relocationOptions,
-  sourceOptions,
-  workModeOptions
+  courseOptions,
+  currentDepartmentOptions
 } from "@/utils/optionsData";
 import ProcessSelector from "@/components/common/ProcessSelector";
 import SearchableDropdown from "@/components/common/SearchableDropdown";
@@ -63,38 +60,38 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
   const [localities, setLocalities] = useState([]);
-  const [jobProfiles, setJobProfiles] = useState([]);
   const [loadingDropdownData, setLoadingDropdownData] = useState({
     qualifications: false,
     states: false,
     cities: false,
-    localities: false,
-    jobProfiles: false
+    localities: false
   });
 
   // Form data state
   const [formData, setFormData] = useState({
     candidateName: "",
-    source: "",
     gender: "",
     contactNumber: "",
     whatsappNumber: "",
     experience: "",
-    qualification: "",
-    passingYear: "",
+    jobInterestedIn: "",
     state: "",
     city: "",
     locality: "",
+    qualification: "",
+    course: "",
+    completionStatus: "",
+    currentSalary: "",
     salaryExpectations: "",
+    currentDepartment: "",
+    customCurrentDepartment: "",
+    currentProfile: "",
     levelOfCommunication: "",
-    noticePeriod: "",
     shiftPreference: "",
-    relocation: "",
-    companyProfile: "",
-    customCompanyProfile: "",
     callStatus: "",
     callSummary: "",
     callDuration: "",
+    dataSaved: "",
     lineupCompany: "",
     customLineupCompany: "",
     lineupProcess: "",
@@ -103,11 +100,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     interviewDate: null,
     walkinDate: null,
     lineupRemarks: "",
-    walkinRemarks: "",
-    workMode: "",
-    jdReferenceCompany: "",
-    jdReferenceProcess: "",
-    jobInterestedIn: ""
+    walkinRemarks: ""
   });
 
   const [showCallSummaryTooltip, setShowCallSummaryTooltip] = useState(null);
@@ -120,25 +113,27 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     if (candidateData) {
       setFormData({
         candidateName: candidateData.name || "",
-        source: candidateData.source || "",
         gender: candidateData.gender || "",
         contactNumber: candidateData.mobileNo || "",
         whatsappNumber: candidateData.whatsappNo || "",
         experience: candidateData.experience || "",
-        qualification: candidateData.qualification || "",
-        passingYear: candidateData.passingYear || "",
+        jobInterestedIn: candidateData.jobInterestedIn || "",
         state: candidateData.state || "",
         city: candidateData.city || "",
         locality: candidateData.locality || "",
+        qualification: candidateData.qualification || "",
+        course: candidateData.course || "",
+        completionStatus: candidateData.completionStatus || "",
+        currentSalary: candidateData.currentSalary || "",
         salaryExpectations: candidateData.salaryExpectation || "",
+        currentDepartment: candidateData.currentDepartment || "",
+        customCurrentDepartment: candidateData.customCurrentDepartment || "",
+        currentProfile: candidateData.currentProfile || "",
         levelOfCommunication: candidateData.communication || "",
-        noticePeriod: candidateData.noticePeriod || "",
         shiftPreference: candidateData.shift || "",
-        relocation: candidateData.relocation || "",
-        companyProfile: candidateData.companyProfile || "",
-        customCompanyProfile: candidateData.customCompanyProfile || "",
         callStatus: candidateData.callStatus || "",
         callDuration: candidateData.callDuration || "1",
+        dataSaved: candidateData.dataSaved || "",
         lineupCompany: candidateData.lineupCompany || "",
         customLineupCompany: candidateData.customLineupCompany || "",
         lineupProcess: candidateData.lineupProcess || "",
@@ -147,11 +142,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         interviewDate: candidateData.interviewDate ? new Date(candidateData.interviewDate) : null,
         walkinDate: candidateData.walkinDate ? new Date(candidateData.walkinDate) : null,
         lineupRemarks: candidateData.lineupRemarks || "",
-        walkinRemarks: candidateData.walkinRemarks || "",
-        workMode: candidateData.workMode || "",
-        jdReferenceCompany: candidateData.jdReferenceCompany || "",
-        jdReferenceProcess: candidateData.jdReferenceProcess || "",
-        jobInterestedIn: candidateData.jobInterestedIn || ""
+        walkinRemarks: candidateData.walkinRemarks || ""
       });
     }
   }, [candidateData]);
@@ -166,15 +157,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     }
   }, [formData.lineupCompany]);
 
-  // Add another useEffect to update process options when JD reference company changes
-  useEffect(() => {
-    setFilteredProcessOptions(getProcessesByCompany(formData.jdReferenceCompany || formData.lineupCompany));
-    
-    // Reset process selection when company changes (unless it's already a valid option)
-    if (formData.jdReferenceProcess && !getProcessesByCompany(formData.jdReferenceCompany).some(p => p.value === formData.jdReferenceProcess)) {
-      setFormData(prev => ({ ...prev, jdReferenceProcess: "" }));
-    }
-  }, [formData.jdReferenceCompany, formData.lineupCompany]);
 
   // Check for user's preferred theme and watch for changes
   useEffect(() => {
@@ -254,23 +236,14 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
             setStates(statesRes);
           }
           setLoadingDropdownData(prev => ({ ...prev, states: false }));
-          
-          // Fetch job profiles
-          setLoadingDropdownData(prev => ({ ...prev, jobProfiles: true }));
-          const jobProfilesRes = await EmployeeServices.getJobProfiles();
-          if (jobProfilesRes && Array.isArray(jobProfilesRes)) {
-            setJobProfiles(jobProfilesRes);
-          }
-          setLoadingDropdownData(prev => ({ ...prev, jobProfiles: false }));
         } catch (error) {
           console.error("Error fetching dropdown data:", error);
           notifyError("Failed to load dropdown data");
           setLoadingDropdownData({
-            qualifications: false,
-            states: false,
-            cities: false,
-            localities: false,
-            jobProfiles: false
+          qualifications: false,
+          states: false,
+          cities: false,
+          localities: false
           });
         }
       };
@@ -383,21 +356,21 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       return;
     }
     
-    // If company profile is changed
-    if (field === "companyProfile") {
-      if (value.toLowerCase() === "others") {
-        // When others is selected, clear the custom profile field to ensure it's filled in newly
+    // If current department is changed
+    if (field === "currentDepartment") {
+      if (value.toLowerCase() === "other") {
+        // When other is selected, clear the custom department field
         setFormData(prev => ({ 
           ...prev, 
           [field]: value,
-          customCompanyProfile: ""
+          customCurrentDepartment: ""
         }));
       } else {
-        // When a specific profile is selected, clear the custom profile field
+        // When a specific department is selected, clear the custom department field
         setFormData(prev => ({ 
           ...prev, 
           [field]: value,
-          customCompanyProfile: ""
+          customCurrentDepartment: ""
         }));
       }
       return;
@@ -454,25 +427,27 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       const updatedData = {
         name: formData.candidateName,
         whatsappNo: formData.whatsappNumber,
-        source: formData.source,
         gender: formData.gender,
         experience: formData.experience,
-        qualification: formData.qualification,
-        passingYear: formData.passingYear,
+        jobInterestedIn: formData.jobInterestedIn || "",
         state: formData.state,
         city: formData.city,
+        locality: formData.locality,
+        qualification: formData.qualification,
+        course: formData.course || "",
+        completionStatus: formData.completionStatus || "",
+        currentSalary: formData.currentSalary || "",
         salaryExpectation: formData.salaryExpectations,
+        currentDepartment: formData.currentDepartment === "Other" ? formData.customCurrentDepartment : formData.currentDepartment,
+        customCurrentDepartment: formData.customCurrentDepartment || "",
+        currentProfile: formData.currentProfile || "",
         communication: formData.levelOfCommunication,
-        noticePeriod: formData.noticePeriod,
         shift: formData.shiftPreference,
-        relocation: formData.relocation || "",
-        companyProfile: formData.companyProfile === "others" ? formData.customCompanyProfile : formData.companyProfile,
         callStatus: formData.callStatus,
         callDuration: formData.callDuration || "0",
         callSummary: formData.callSummary || "",
-        locality: formData.locality,
+        dataSaved: formData.dataSaved || "",
         lineupCompany: formData.lineupCompany === "others" ? formData.customLineupCompany : formData.lineupCompany,
-        customCompanyProfile: formData.customCompanyProfile,
         customLineupCompany: formData.customLineupCompany,
         lineupProcess: formData.lineupProcess === "others" ? formData.customLineupProcess : formData.lineupProcess,
         customLineupProcess: formData.customLineupProcess,
@@ -480,11 +455,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         interviewDate: formData.interviewDate && formData.interviewDate instanceof Date && !isNaN(formData.interviewDate) ? formData.interviewDate.toISOString() : null,
         walkinDate: formData.walkinDate && formData.walkinDate instanceof Date && !isNaN(formData.walkinDate) ? formData.walkinDate.toISOString() : null,
         lineupRemarks: formData.lineupRemarks,
-        walkinRemarks: formData.walkinRemarks,
-        workMode: formData.workMode,
-        jdReferenceCompany: formData.jdReferenceCompany,
-        jdReferenceProcess: formData.jdReferenceProcess,
-        jobInterestedIn: formData.jobInterestedIn || ""
+        walkinRemarks: formData.walkinRemarks
       };
       
       // Call API to update candidate data
@@ -570,15 +541,19 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     })) || [])
   ];
 
-  // Create job profile options from API data
-  const jobProfileOptions = useMemo(() => [
-    { value: "", label: "Select Job Profile" },
-    ...(jobProfiles?.map(profile => ({ 
-      value: profile.name || profile, 
-      label: profile.name || profile 
-    })) || []),
-    { value: "others", label: "Others" }
-  ], [jobProfiles]);
+  // Completion status options
+  const completionStatusOptions = [
+    { value: "", label: "Select Status" },
+    { value: "Completed", label: "Completed" },
+    { value: "Pursuing", label: "Pursuing" }
+  ];
+
+  // Data saved options
+  const dataSavedOptions = [
+    { value: "", label: "Select Status" },
+    { value: "Saved", label: "Saved" },
+    { value: "Not Saved", label: "Not Saved" }
+  ];
 
   // All fields in a single flat array - organized as in CallInfo
   const fields = [
@@ -605,35 +580,20 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       required: false, 
       inputClass: "w-full"
     },
-    { label: "Source", key: "source", icon: <MdSource />, type: "select", options: sourceOptions, required: false, inputClass: "w-full" },
     { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: false, inputClass: "w-full" },
     { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptions, required: false, inputClass: "w-full" },
-    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.qualifications },
-    { 
-      label: "Passing Year", 
-      key: "passingYear", 
-      icon: <MdSchool />, 
-      type: "select",
-      options: [
-        { value: "", label: "Select Year" },
-        ...Array.from({ length: 31 }, (_, i) => ({
-          value: String(2030 - i),
-          label: String(2030 - i)
-        }))
-      ],
-      required: false,
-      inputClass: "w-full"
-    },
+    { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "State", key: "state", icon: <MdPublic />, type: "select", options: stateOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.states },
     { label: "City", key: "city", icon: <MdLocationCity />, type: "select", options: cityOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.cities },
-    { label: "Salary Expectation", key: "salaryExpectations", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
-    { label: "Communication", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: false, inputClass: "w-full" },
-    { label: "Notice Period", key: "noticePeriod", icon: <MdTimer />, type: "select", options: noticePeriodOptions, required: false, inputClass: "w-full" },
+    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.qualifications },
+    { label: "Course", key: "course", icon: <MdSchool />, type: "select", options: courseOptions, required: false, inputClass: "w-full" },
+    { label: "Completion Status", key: "completionStatus", icon: <MdTask />, type: "select", options: completionStatusOptions, required: false, inputClass: "w-full" },
+    { label: "Current Salary", key: "currentSalary", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
+    { label: "Expected Salary", key: "salaryExpectations", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
+    { label: "Current Department", key: "currentDepartment", icon: <MdBusinessCenter />, type: "select", options: currentDepartmentOptions, required: false, inputClass: "w-full" },
+    { label: "Current Profile", key: "currentProfile", icon: <MdWork />, required: false, inputClass: "w-full" },
+    { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: false, inputClass: "w-full" },
     { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: false, inputClass: "w-full" },
-    { label: "Relocation", key: "relocation", icon: <MdShare />, type: "select", options: relocationOptions, required: false, inputClass: "w-full" },
-    { label: "Work Mode", key: "workMode", icon: <MdBusinessCenter />, type: "select", options: workModeOptions, required: false, inputClass: "w-full" },
-    { label: "Job Profile", key: "companyProfile", icon: <MdBusinessCenter />, type: "select", options: jobProfileOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.jobProfiles },
-    { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: false, inputClass: "w-full" },
     { 
       label: "Walkin Date", 
@@ -669,7 +629,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       key: "lineupCompany", 
       icon: <MdBusinessCenter />, 
       type: "select", 
-      options: companyOptions,
+      options: lineupCompanyOptions,
       required: false,
       inputClass: "w-full",
       hidden: formData.callStatus !== "Lineup" 
@@ -777,44 +737,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       )
     },
     { label: "Call Duration", key: "callDuration", icon: <MdWatch />, type: "select", options: callDurationOptions, required: false, inputClass: "w-full" },
-    { 
-      label: "Company JD", 
-      key: "jdReferenceCompany", 
-      icon: <MdBusinessCenter />, 
-      type: "select", 
-      options: companyOptions,
-      required: false,
-      inputClass: "w-full"
-    },
-    { 
-      label: "JD Process", 
-      key: "jdReferenceProcess", 
-      icon: <MdTask />, 
-      type: "custom", 
-      options: filteredProcessOptions,
-      required: false,
-      inputClass: "w-full",
-      render: ({ key, label, options, required, inputClass }) => (
-        <div className="flex flex-col relative">
-          <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-            <span className="text-base"><MdTask /></span>
-            {label}
-            {required && <span className="text-red-500">*</span>}
-          </label>
-          <SearchableProcessDropdown
-            options={options}
-            value={formData[key]}
-            onChange={(e) => handleChange(key, e.target.value)}
-            placeholder={`Search ${label}...`}
-            required={required}
-            disabled={loading}
-            darkMode={darkMode}
-            className={inputClass || ''}
-            phoneNumber={formData.whatsappNumber}
-          />
-        </div>
-      )
-    },
+    { label: "Data Saved", key: "dataSaved", icon: <MdTask />, type: "select", options: dataSavedOptions, required: false, inputClass: "w-full" },
     { 
       label: "Lineup Remarks", 
       key: "lineupRemarks", 
@@ -838,7 +761,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
   ];
 
   // Show locality field only when city is Indore
-  const showLocalityField = formData.city.toLowerCase() === "indore";
+  const showLocalityField = formData.city && formData.city.toLowerCase() === "indore";
 
   // Format individual call history for tooltip
   const formatCallHistory = (employeeCallHistory) => {
@@ -1049,12 +972,12 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                           />
                         )}
                         
-                        {key === "companyProfile" && formData.companyProfile === "others" && (
+                        {key === "currentDepartment" && formData.currentDepartment === "Other" && (
                           <input
                             type="text"
-                            value={formData.customCompanyProfile || ""}
-                            onChange={(e) => handleChange("customCompanyProfile", e.target.value)}
-                            placeholder="Custom profile"
+                            value={formData.customCurrentDepartment || ""}
+                            onChange={(e) => handleChange("customCurrentDepartment", e.target.value)}
+                            placeholder="Custom department"
                             required={false}
                             className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 

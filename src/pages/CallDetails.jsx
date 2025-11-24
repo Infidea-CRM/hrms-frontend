@@ -36,10 +36,7 @@ import {
   experienceOptions,
   genderOptions,
   communicationOptions,
-  shiftPreferenceOptions,
-  noticePeriodOptions,
-  relocationOptions,
-  sourceOptions
+  shiftPreferenceOptions
 } from "@/utils/optionsData";
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
@@ -57,9 +54,6 @@ const CallDetails = () => {
     gender: [],
     communication: [],
     shift: [],
-    noticePeriod: [],
-    relocation: [],
-    source: [],
     qualification: [],
     locality: [],
   });
@@ -225,9 +219,6 @@ const CallDetails = () => {
       gender: [],
       communication: [],
       shift: [],
-      noticePeriod: [],
-      relocation: [],
-      source: [],
       qualification: [],
       locality: [],
     });
@@ -823,21 +814,6 @@ const CallDetails = () => {
       name: "shift",
       label: "Shift Preference",
       options: shiftPreferenceOptions
-    },
-    {
-      name: "noticePeriod",
-      label: "Notice Period",
-      options: noticePeriodOptions
-    },
-    {
-      name: "relocation",
-      label: "Relocation",
-      options: relocationOptions
-    },
-    {
-      name: "source",
-      label: "Source",
-      options: sourceOptions
     },
     {
       name: "qualification",

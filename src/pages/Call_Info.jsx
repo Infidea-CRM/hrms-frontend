@@ -37,16 +37,14 @@ import SearchableProcessDropdown from "@/components/common/SearchableProcessDrop
 import { 
   companyOptions as lineupCompanyOptions, 
   callStatusOptions,
-  noticePeriodOptions,
   shiftPreferenceOptions, 
   communicationOptions,
   sourceOptions,
   experienceOptions,
-  relocationOptions,
   getProcessesByCompany,
-  workModeOptions,
   genderOptions,
-  pursuingInOptions
+  courseOptions,
+  currentDepartmentOptions
 } from "@/utils/optionsData";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -80,13 +78,11 @@ function CallInfo() {
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
   const [localities, setLocalities] = useState([]);
-  const [jobProfiles, setJobProfiles] = useState([]);
   const [loadingDropdownData, setLoadingDropdownData] = useState({
     qualifications: false,
     states: false,
     cities: false,
-    localities: false,
-    jobProfiles: false
+    localities: false
   });
 
   // Add a new state for filtered process options
@@ -101,23 +97,22 @@ function CallInfo() {
     whatsappNumber: "",
     experience: "",
     qualification: "",
-    passingYear: "",
-    pursuingIn: "",
+    course: "",
+    completionStatus: "",
+    currentSalary: "",
     state: "",
     city: "",
     locality: "",
     salaryExpectations: "",
     levelOfCommunication: "",
-    noticePeriod: "Immediate Joiner",
+    currentDepartment: "",
+    customCurrentDepartment: "",
+    currentProfile: "",
     shiftPreference: "Any Shift Works",
-    relocation: "",
-    companyProfile: "",
-    customCompanyProfile: "",
     callStatus: "",
     callSummary: "-",
     callDuration: "1",
-    jdReferenceCompany: "",
-    jdReferenceProcess: "",
+    dataSaved: "",
     lineupCompany: "",
     customLineupCompany: "",
     lineupProcess: "",
@@ -243,14 +238,6 @@ function CallInfo() {
           setStates(statesRes);
         }
         setLoadingDropdownData(prev => ({ ...prev, states: false }));
-        
-        // Fetch job profiles
-        setLoadingDropdownData(prev => ({ ...prev, jobProfiles: true }));
-        const jobProfilesRes = await EmployeeServices.getJobProfiles();
-        if (jobProfilesRes && Array.isArray(jobProfilesRes)) {
-          setJobProfiles(jobProfilesRes);
-        }
-        setLoadingDropdownData(prev => ({ ...prev, jobProfiles: false }));
       } catch (error) {
         console.error("Error fetching dropdown data:", error);
         notifyError("Failed to load dropdown data");
@@ -258,8 +245,7 @@ function CallInfo() {
           qualifications: false,
           states: false,
           cities: false,
-          localities: false,
-          jobProfiles: false
+          localities: false
         });
       }
     };
@@ -354,17 +340,6 @@ function CallInfo() {
     }
   }, [formData.lineupCompany]);
 
-  // Add another useEffect to update process options when JD reference company changes
-  useEffect(() => {
-    if (isResettingRef.current) return;
-    
-    setFilteredProcessOptions(getProcessesByCompany(formData.jdReferenceCompany || formData.lineupCompany));
-    
-    // Reset process selection when company changes (unless it's already a valid option)
-    if (formData.jdReferenceProcess && !getProcessesByCompany(formData.jdReferenceCompany).some(p => p.value === formData.jdReferenceProcess)) {
-      setFormData(prev => ({ ...prev, jdReferenceProcess: "" }));
-    }
-  }, [formData.jdReferenceCompany, formData.lineupCompany]);
 
   // Add keyboard shortcut listener for Ctrl+"
   useEffect(() => {
@@ -441,21 +416,21 @@ function CallInfo() {
       return;
     }
     
-    // If company profile is changed
-    if (field === "companyProfile") {
-      if (value.toLowerCase() === "others") {
-        // When others is selected, clear the custom profile field to ensure it's filled in newly
+    // If current department is changed
+    if (field === "currentDepartment") {
+      if (value.toLowerCase() === "other") {
+        // When other is selected, clear the custom department field
         setFormData(prev => ({ 
           ...prev, 
           [field]: value,
-          customCompanyProfile: ""
+          customCurrentDepartment: ""
         }));
       } else {
-        // When a specific profile is selected, clear the custom profile field
+        // When a specific department is selected, clear the custom department field
         setFormData(prev => ({ 
           ...prev, 
           [field]: value,
-          customCompanyProfile: ""
+          customCurrentDepartment: ""
         }));
       }
       return;
@@ -572,22 +547,23 @@ function CallInfo() {
         gender: formData.gender,
         experience: formData.experience,
         qualification: formData.qualification,
-        passingYear: formData.passingYear,
-        pursuingIn: formData.passingYear === "pursuing" ? formData.pursuingIn : "",
+        course: formData.course,
+        completionStatus: formData.completionStatus,
+        currentSalary: formData.currentSalary,
         state: formData.state,
         city: formData.city,
         salaryExpectation: formData.salaryExpectations,
         communication: formData.levelOfCommunication,
-        noticePeriod: formData.noticePeriod,
+        currentDepartment: formData.currentDepartment === "Other" ? formData.customCurrentDepartment : formData.currentDepartment,
+        customCurrentDepartment: formData.customCurrentDepartment,
+        currentProfile: formData.currentProfile,
         shift: formData.shiftPreference,
-        relocation: formData.relocation,
-        companyProfile: formData.companyProfile === "others" ? formData.customCompanyProfile : formData.companyProfile,
         callStatus: formData.callStatus,
         callDuration: formData.callDuration,
+        dataSaved: formData.dataSaved,
         callSummary: formData.callSummary,
         locality: formData.locality,
         lineupCompany: formData.lineupCompany === "others" ? formData.customLineupCompany : formData.lineupCompany,
-        customCompanyProfile: formData.customCompanyProfile,
         customLineupCompany: formData.customLineupCompany,
         lineupProcess: formData.lineupProcess === "others" ? formData.customLineupProcess : formData.lineupProcess,
         customLineupProcess: formData.customLineupProcess,
@@ -596,7 +572,6 @@ function CallInfo() {
         walkinDate: formData.walkinDate,
         lineupRemarks: formData.lineupRemarks,
         walkinRemarks: formData.walkinRemarks,
-        workMode: formData.workMode,
         jobInterestedIn: formData.jobInterestedIn
       };
       // Call API
@@ -680,15 +655,6 @@ function CallInfo() {
     })) || [])
   ];
 
-  // Create job profile options from API data
-  const jobProfileOptions = useMemo(() => [
-    ...(jobProfiles?.map(profile => ({ 
-      value: profile.name || profile, 
-      label: profile.name || profile 
-    })) || []),
-    { value: "others", label: "Others" }
-  ], [jobProfiles]);
-
   // All fields in a single flat array - rearranged as requested
   const fields = [
     { label: "Candidate's Name", key: "candidateName", icon: <MdPerson />, required: true, inputClass: "w-full" },
@@ -716,41 +682,18 @@ function CallInfo() {
     // { label: "Sourced", key: "source", icon: <MdSource />, type: "select", options: sourceOptions, required: true, inputClass: "w-full" },
     { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: true, inputClass: "w-full" },
     { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptions, required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus), inputClass: "w-full" },
-    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus), inputClass: "w-full", loading: loadingDropdownData.qualifications },
-    { 
-      label: "Passing Year", 
-      key: "passingYear", 
-      icon: <MdSchool />, 
-      type: "select",
-      options: [
-        { value: "pursuing", label: "Pursuing" },
-        ...Array.from({ length: 31 }, (_, i) => ({
-          value: String(2030 - i),
-          label: String(2030 - i)
-        }))
-      ],
-      required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus),
-      inputClass: "w-full"
-    },
-    { 
-      label: "Current Sem/Year", 
-      key: "pursuingIn", 
-      icon: <MdSchool />, 
-      type: "select",
-      options: pursuingInOptions,
-      required: formData.passingYear === "pursuing",
-      inputClass: "w-full",
-      hidden: formData.passingYear !== "pursuing"
-    },
+    { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "State", key: "state", icon: <MdPublic />, type: "select", options: stateOptions, required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus), inputClass: "w-full", loading: loadingDropdownData.states },
     { label: "City", key: "city", icon: <MdLocationCity />, type: "select", options: cityOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.cities },
-    { label: "Salary Expectation", key: "salaryExpectations", icon: <IoCashOutline />, required: true, inputClass: "w-full" },
-    { label: "Notice Period", key: "noticePeriod", icon: <MdTimer />, type: "select", options: noticePeriodOptions, required: true, inputClass: "w-full" },
+    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus), inputClass: "w-full", loading: loadingDropdownData.qualifications },
+    { label: "Course", key: "course", icon: <MdSchool />, type: "select", options: courseOptions, required: false, inputClass: "w-full" },
+    { label: "Completion Status", key: "completionStatus", icon: <MdTask />, type: "select", options: [{ value: "Completed", label: "Completed" }, { value: "Pursuing", label: "Pursuing" }], required: false, inputClass: "w-full" },
+    { label: "Current Salary", key: "currentSalary", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
+    { label: "Expected Salary", key: "salaryExpectations", icon: <IoCashOutline />, required: true, inputClass: "w-full" },
+    { label: "Current Department", key: "currentDepartment", icon: <MdBusinessCenter />, type: "select", options: currentDepartmentOptions, required: false, inputClass: "w-full" },
+    { label: "Current Profile", key: "currentProfile", icon: <MdWork />, required: false, inputClass: "w-full" },
+    { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: true, inputClass: "w-full" },
     { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: true, inputClass: "w-full" },
-    { label: "Relocation", key: "relocation", icon: <MdShare />, type: "select", options: relocationOptions, required: true, inputClass: "w-full" },
-    { label: "Work Mode", key: "workMode", icon: <MdBusinessCenter />, type: "select", options: workModeOptions, required: true, inputClass: "w-full" },
-    { label: "Process/Profile", key: "companyProfile", icon: <MdBusinessCenter />, type: "select", options: jobProfileOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.jobProfiles },
-    { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: true, inputClass: "w-full" },
     { 
       label: "Walkin Date", 
@@ -900,45 +843,7 @@ function CallInfo() {
       )
     },
     { label: "Call Duration", key: "callDuration", icon: <MdWatch />, type: "select", options: callDurationOptions, required: false, inputClass: "w-full" },
-    { label: "Communication", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: true, inputClass: "w-full" },
-    { 
-      label: "Company JD", 
-      key: "jdReferenceCompany", 
-      icon: <MdBusinessCenter />, 
-      type: "select", 
-      options: lineupCompanyOptions,
-      required: false,
-      inputClass: "w-full"
-    },
-    { 
-      label: "JD Process", 
-      key: "jdReferenceProcess", 
-      icon: <MdTask />, 
-      type: "custom", 
-      options: filteredProcessOptions,
-      required: false,
-      inputClass: "w-full",
-      render: ({ key, label, options, required, inputClass }) => (
-        <div className="flex flex-col relative">
-          <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-            <span className="text-base"><MdTask /></span>
-            {label}
-            {required && <span className="text-red-500">*</span>}
-          </label>
-          <SearchableProcessDropdown
-            options={options}
-            value={formData[key]}
-            onChange={(e) => handleChange(key, e.target.value)}
-            placeholder={`Search ${label}...`}
-            required={required}
-            disabled={loading}
-            darkMode={darkMode}
-            className={inputClass || ''}
-            phoneNumber={formData.whatsappNumber}
-          />
-        </div>
-      )
-    },
+    { label: "Data Saved", key: "dataSaved", icon: <MdTask />, type: "select", options: [{ value: "Saved", label: "Saved" }, { value: "Not Saved", label: "Not Saved" }], required: false, inputClass: "w-full" },
     
     { 
       label: "Lineup Remarks", 
@@ -1455,13 +1360,13 @@ function CallInfo() {
                           />
                         )}
                         
-                        {key === "companyProfile" && formData.companyProfile === "others" && (
+                        {key === "currentDepartment" && formData.currentDepartment === "Other" && (
                           <input
                             type="text"
-                            value={formData.customCompanyProfile || ""}
-                            onChange={(e) => handleChange("customCompanyProfile", e.target.value)}
-                            placeholder="Custom profile"
-                            required={isFieldRequired && formData.companyProfile === "others"}
+                            value={formData.customCurrentDepartment || ""}
+                            onChange={(e) => handleChange("customCurrentDepartment", e.target.value)}
+                            placeholder="Enter department name"
+                            required={isFieldRequired && formData.currentDepartment === "Other"}
                             className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                               : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}

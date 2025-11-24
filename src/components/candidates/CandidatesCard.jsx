@@ -262,31 +262,103 @@ const CandidatesCard = ({
                     </div>
                   )}
 
-                  {/* Profile */}
-                  {candidate?.companyProfile && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <MdWork className="info-item-icon mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <div 
-                          className="info-item-text truncate"
-                          onClick={() => onView(candidate)}
-                          title={candidate.companyProfile}
-                        >
-                          {searchTerm ? highlightText(candidate.companyProfile, searchTerm) : candidate.companyProfile}
-                        </div>
-                        {candidate?.jobInterestedIn && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate" title={candidate.jobInterestedIn}>
-                            {searchTerm ? highlightText(candidate.jobInterestedIn, searchTerm) : candidate.jobInterestedIn}
-                          </div>
-                        )}
-                      </div>
+                  {/* Job Interested In */}
+                  {candidate?.jobInterestedIn && (
+                    <div className="info-item">
+                      <MdWork className="info-item-icon" />
+                      <span 
+                        className="info-item-text truncate"
+                        onClick={() => onView(candidate)}
+                        title={candidate.jobInterestedIn}
+                      >
+                        {searchTerm ? highlightText(candidate.jobInterestedIn, searchTerm) : candidate.jobInterestedIn}
+                      </span>
                     </div>
                   )}
 
-                  {/* Communication */}
+                  {/* Course */}
+                  {candidate?.course && (
+                    <div className="info-item">
+                      <MdSchool className="info-item-icon" />
+                      <span 
+                        className="info-item-text truncate"
+                        onClick={() => onView(candidate)}
+                        title={candidate.course}
+                      >
+                        {searchTerm ? highlightText(candidate.course, searchTerm) : candidate.course}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Completion Status */}
+                  {candidate?.completionStatus && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Completion: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.completionStatus, searchTerm) : candidate.completionStatus}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Current Salary */}
+                  {candidate?.currentSalary && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Current Salary: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.currentSalary, searchTerm) : candidate.currentSalary}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Expected Salary */}
+                  {candidate?.salaryExpectation && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Expected Salary: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.salaryExpectation, searchTerm) : candidate.salaryExpectation}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Current Department */}
+                  {(candidate?.currentDepartment || candidate?.customCurrentDepartment) && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Department: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.currentDepartment || candidate.customCurrentDepartment, searchTerm) : (candidate.currentDepartment || candidate.customCurrentDepartment)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Current Profile */}
+                  {candidate?.currentProfile && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Profile: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.currentProfile, searchTerm) : candidate.currentProfile}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Communication Level */}
                   {candidate?.communication && (
                     <div className="text-sm">
-                      <span className="text-gray-500 dark:text-gray-400 text-xs">Communication: </span>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Communication Level: </span>
                       <span 
                         className="info-item-text"
                         onClick={() => onView(candidate)}
@@ -309,10 +381,64 @@ const CandidatesCard = ({
                     </div>
                   )}
 
+                  {/* Data Saved */}
+                  {candidate?.dataSaved && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Data Saved: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.dataSaved, searchTerm) : candidate.dataSaved}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Old Fields - Show only if they have values */}
+                  
+                  {/* Source */}
+                  {candidate?.source && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Source: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.source, searchTerm) : candidate.source}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Passing Year */}
+                  {candidate?.passingYear && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Passing Year: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.passingYear, searchTerm) : candidate.passingYear}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Profile (Old) */}
+                  {(candidate?.companyProfile || candidate?.customCompanyProfile) && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Profile (Old): </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.companyProfile || candidate.customCompanyProfile, searchTerm) : (candidate.companyProfile || candidate.customCompanyProfile)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Notice Period */}
                   {candidate?.noticePeriod && (
                     <div className="text-sm">
-                      <span className="text-gray-500 dark:text-gray-400 text-xs">Notice: </span>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Notice Period: </span>
                       <span 
                         className="info-item-text"
                         onClick={() => onView(candidate)}
@@ -322,15 +448,54 @@ const CandidatesCard = ({
                     </div>
                   )}
 
-                  {/* Salary */}
-                  {candidate?.salaryExpectation && (
+                  {/* Relocation */}
+                  {candidate?.relocation && (
                     <div className="text-sm">
-                      <span className="text-gray-500 dark:text-gray-400 text-xs">Salary: </span>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Relocation: </span>
                       <span 
                         className="info-item-text"
                         onClick={() => onView(candidate)}
                       >
-                        {searchTerm ? highlightText(candidate.salaryExpectation, searchTerm) : candidate.salaryExpectation}
+                        {searchTerm ? highlightText(candidate.relocation, searchTerm) : candidate.relocation}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Work Mode */}
+                  {candidate?.workMode && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Work Mode: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.workMode, searchTerm) : candidate.workMode}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Company JD */}
+                  {candidate?.jdReferenceCompany && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Company JD: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.jdReferenceCompany, searchTerm) : candidate.jdReferenceCompany}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* JD Process */}
+                  {candidate?.jdReferenceProcess && (
+                    <div className="text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">JD Process: </span>
+                      <span 
+                        className="info-item-text"
+                        onClick={() => onView(candidate)}
+                      >
+                        {searchTerm ? highlightText(candidate.jdReferenceProcess, searchTerm) : candidate.jdReferenceProcess}
                       </span>
                     </div>
                   )}

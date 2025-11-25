@@ -80,6 +80,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     locality: "",
     qualification: "",
     course: "",
+    customCourse: "",
     completionStatus: "",
     currentSalary: "",
     salaryExpectations: "",
@@ -104,6 +105,8 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
   });
 
   const [showCallSummaryTooltip, setShowCallSummaryTooltip] = useState(null);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [showDurationModal, setShowDurationModal] = useState(false);
 
   // Add this after your formData state initialization
   const [minDate] = useState(new Date());
@@ -123,6 +126,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         locality: candidateData.locality || "",
         qualification: candidateData.qualification || "",
         course: candidateData.course || "",
+        customCourse: candidateData.customCourse || "",
         completionStatus: candidateData.completionStatus || "",
         currentSalary: candidateData.currentSalary || "",
         salaryExpectations: candidateData.salaryExpectation || "",
@@ -132,7 +136,8 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         levelOfCommunication: candidateData.communication || "",
         shiftPreference: candidateData.shift || "",
         callStatus: candidateData.callStatus || "",
-        callDuration: candidateData.callDuration || "1",
+        callDuration: "", // Keep empty for new duration
+        callSummary: "", // Keep empty for new summary
         dataSaved: candidateData.dataSaved || "",
         lineupCompany: candidateData.lineupCompany || "",
         customLineupCompany: candidateData.customLineupCompany || "",
@@ -356,6 +361,26 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       return;
     }
     
+    // If course is changed
+    if (field === "course") {
+      if (value.toLowerCase() === "other") {
+        // When other is selected, clear the custom course field
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          customCourse: ""
+        }));
+      } else {
+        // When a specific course is selected, clear the custom course field
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          customCourse: ""
+        }));
+      }
+      return;
+    }
+    
     // If current department is changed
     if (field === "currentDepartment") {
       if (value.toLowerCase() === "other") {
@@ -423,6 +448,13 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     e.preventDefault();
     setLoading(true);
     try {
+      // Ensure callDuration is provided (backend requires it to append callSummary)
+      // If callSummary is provided but callDuration is not, use "0" as default
+      let callDurationToSend = formData.callDuration || "0";
+      if (formData.callSummary && formData.callSummary.trim() !== "" && !formData.callDuration) {
+        callDurationToSend = "0";
+      }
+
       // Prepare candidate data for API
       const updatedData = {
         name: formData.candidateName,
@@ -434,7 +466,8 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         city: formData.city,
         locality: formData.locality,
         qualification: formData.qualification,
-        course: formData.course || "",
+        course: formData.course === "Other" ? formData.customCourse : formData.course,
+        customCourse: formData.customCourse || "",
         completionStatus: formData.completionStatus || "",
         currentSalary: formData.currentSalary || "",
         salaryExpectation: formData.salaryExpectations,
@@ -444,7 +477,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         communication: formData.levelOfCommunication,
         shift: formData.shiftPreference,
         callStatus: formData.callStatus,
-        callDuration: formData.callDuration || "0",
+        callDuration: callDurationToSend,
         callSummary: formData.callSummary || "",
         dataSaved: formData.dataSaved || "",
         lineupCompany: formData.lineupCompany === "others" ? formData.customLineupCompany : formData.lineupCompany,
@@ -764,17 +797,72 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
   const showLocalityField = formData.city && formData.city.toLowerCase() === "indore";
 
   // Format individual call history for tooltip
-  const formatCallHistory = (employeeCallHistory) => {
-    if (!employeeCallHistory || employeeCallHistory.length === 0) return "No call history";
+  const formatCallHistory = (callHistory) => {
+    if (!callHistory) return "No call history";
+    
+    // Handle both callSummary array and callDurationHistory array
+    let historyArray = [];
+    if (Array.isArray(callHistory)) {
+      historyArray = callHistory;
+    } else if (candidateData?.callSummary && Array.isArray(candidateData.callSummary)) {
+      historyArray = candidateData.callSummary;
+    } else if (candidateData?.callDurationHistory && Array.isArray(candidateData.callDurationHistory)) {
+      historyArray = candidateData.callDurationHistory;
+    }
+    
+    if (historyArray.length === 0) return "No call history";
     
     // Sort the call history to show latest calls at the top (descending order by date)
-    const sortedHistory = [...employeeCallHistory].sort((a, b) => 
-      new Date(b.date) - new Date(a.date)
-    );
+    const sortedHistory = [...historyArray]
+      .filter(item => item && (item.summary || item.date))
+      .sort((a, b) => {
+        const dateA = a.date ? new Date(a.date) : new Date(0);
+        const dateB = b.date ? new Date(b.date) : new Date(0);
+        return dateB - dateA;
+      });
     
-    return sortedHistory.map((call, index) => (
-      `${formatLongDateAndTime(call.date)} - ${call.summary}`
-    )).join('\n');
+    return sortedHistory.map((call, index) => {
+      const dateText = call.date ? formatLongDateAndTime(call.date) : 'Date not available';
+      const summaryText = call.summary || '';
+      return `${dateText} - ${summaryText}`;
+    }).join('\n');
+  };
+
+  // Format call summary for display (similar to CallDetailsViewModal)
+  const formatCallSummary = (callSummary) => {
+    if (!callSummary || callSummary.length === 0) return "No call summary";
+    
+    // Sort by date (newest first) with null checks
+    const sortedSummary = [...callSummary].sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      return dateB - dateA;
+    });
+    
+    return sortedSummary.map((call) => {
+      const dateText = call.date ? formatLongDateAndTime(call.date) : 'Date not available';
+      const summaryText = call.summary || 'No summary';
+      return `${dateText} - ${summaryText}`;
+    }).join('\n');
+  };
+
+  // Format call duration history for display (similar to call summary)
+  const formatCallDurationHistory = (callDurationHistory) => {
+    if (!callDurationHistory || callDurationHistory.length === 0) return "No call duration history";
+    
+    // Sort by date (newest first) with null checks
+    const sortedHistory = [...callDurationHistory].sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      return dateB - dateA;
+    });
+    
+    return sortedHistory.map((call) => {
+      const dateText = call.date ? formatLongDateAndTime(call.date) : 'Date not available';
+      const duration = parseInt(call.duration) || 0;
+      const durationText = duration <= 1 ? `${duration} minute` : `${duration} minutes`;
+      return `${dateText} - ${durationText}`;
+    }).join('\n');
   };
 
   // If the modal is not open, don't render anything
@@ -924,6 +1012,40 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                   );
                 }
                 
+                // Special handling for Call Duration field - add button to view previous
+                if (key === "callDuration") {
+                  return (
+                    <div key={key} className="flex flex-col relative">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className={`flex items-center gap-1.5 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          <span className="text-base">{icon}</span>
+                          {label}
+                          {required && <span className="text-red-500">*</span>}
+                        </label>
+                        {candidateData?.callDurationHistory && Array.isArray(candidateData.callDurationHistory) && candidateData.callDurationHistory.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowDurationModal(true)}
+                            className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'} transition-colors`}
+                          >
+                            View Previous Calls
+                          </button>
+                        )}
+                      </div>
+                      <SearchableDropdown
+                        options={options}
+                        value={formData[key]}
+                        onChange={(e) => handleChange(key, e.target.value)}
+                        placeholder={`Search ${label}...`}
+                        required={required}
+                        disabled={loading}
+                        darkMode={darkMode}
+                        className={inputClass || ''}
+                      />
+                    </div>
+                  );
+                }
+                
                 return (
                   <div key={key} className="flex flex-col relative">
                     <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -965,6 +1087,19 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                             value={formData.customLineupProcess || ""}
                             onChange={(e) => handleChange("customLineupProcess", e.target.value)}
                             placeholder="Custom process"
+                            required={false}
+                            className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "course" && formData.course === "Other" && (
+                          <input
+                            type="text"
+                            value={formData.customCourse || ""}
+                            onChange={(e) => handleChange("customCourse", e.target.value)}
+                            placeholder="Enter course name"
                             required={false}
                             className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
@@ -1046,26 +1181,20 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
 
             {/* Call Summary Field */}
             <div className="mt-3 grid grid-cols-1">
-              <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="flex items-center justify-between mb-1.5">
                 <label className={`flex items-center gap-1.5 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   <span className="text-base"><MdNotes /></span>
                   Call Summary
                 </label>
-                <div className="relative inline-block">
-                  <MdInfo 
-                    className="w-3.5 h-3.5 text-blue-500 cursor-help hover:text-blue-700" 
-                    onMouseEnter={() => setShowCallSummaryTooltip(true)}
-                    onMouseLeave={() => setShowCallSummaryTooltip(false)}
-                  />
-                  {showCallSummaryTooltip && (
-                    <div className="absolute z-[9999] w-64 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg -translate-x-1/2 left-1/2 bottom-full mb-2 text-left">
-                      <div className="text-xs font-medium text-gray-800 dark:text-gray-200 whitespace-pre-line overflow-y-auto max-h-40">
-                        {formatCallHistory(candidateData?.callSummary)}
-                      </div>
-                      <div className="absolute w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white dark:border-t-gray-800 -bottom-2 left-1/2 -translate-x-1/2"></div>
-                    </div>
-                  )}
-                </div>
+                {candidateData?.callSummary && Array.isArray(candidateData.callSummary) && candidateData.callSummary.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSummaryModal(true)}
+                    className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'} transition-colors`}
+                  >
+                    View Past Summary
+                  </button>
+                )}
               </div>
               <textarea
                 ref={callSummaryRef}
@@ -1103,6 +1232,78 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
           </div>
         </form>
       </div>
+
+      {/* Past Summary Modal */}
+      {showSummaryModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" 
+            onClick={() => setShowSummaryModal(false)}
+          ></div>
+          <div className={`relative z-10 max-w-2xl w-11/12 max-h-[80vh] overflow-y-auto rounded-lg shadow-xl ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-800'}`}>
+            <div className={`sticky top-0 z-30 flex justify-between items-center p-4 border-b bg-white dark:bg-gray-900 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-bold ${darkMode ? 'text-[#e2692c]' : 'text-[#1a5d96]'}`}>
+                Past Call Summaries
+              </h3>
+              <button
+                onClick={() => setShowSummaryModal(false)}
+                className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+              >
+                <MdClose className="text-xl" />
+              </button>
+            </div>
+            <div className="p-4">
+              {candidateData?.callSummary && Array.isArray(candidateData.callSummary) && candidateData.callSummary.length > 0 ? (
+                <div className={`rounded-lg p-4 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className={`text-sm break-words whitespace-pre-line ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {formatCallSummary(candidateData.callSummary)}
+                  </div>
+                </div>
+              ) : (
+                <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No call summaries available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Previous Calls Modal */}
+      {showDurationModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" 
+            onClick={() => setShowDurationModal(false)}
+          ></div>
+          <div className={`relative z-10 max-w-2xl w-11/12 max-h-[80vh] overflow-y-auto rounded-lg shadow-xl ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-800'}`}>
+            <div className={`sticky top-0 z-30 flex justify-between items-center p-4 border-b bg-white dark:bg-gray-900 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-bold ${darkMode ? 'text-[#e2692c]' : 'text-[#1a5d96]'}`}>
+                Previous Call Durations
+              </h3>
+              <button
+                onClick={() => setShowDurationModal(false)}
+                className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+              >
+                <MdClose className="text-xl" />
+              </button>
+            </div>
+            <div className="p-4">
+              {candidateData?.callDurationHistory && Array.isArray(candidateData.callDurationHistory) && candidateData.callDurationHistory.length > 0 ? (
+                <div className={`rounded-lg p-4 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className={`text-sm break-words whitespace-pre-line ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {formatCallDurationHistory(candidateData.callDurationHistory)}
+                  </div>
+                </div>
+              ) : (
+                <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No call duration history available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

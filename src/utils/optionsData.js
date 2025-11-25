@@ -93,7 +93,7 @@ export const courseOptions = [
   { value: "MSc", label: "MSc" },
   { value: "MSW - Social Work", label: "MSW - Social Work" },
   { value: "Other", label: "Other" },
-  { value: "PhD – Other", label: "PhD – Other" },
+  { value: "PhD ", label: "PhD – Other" },
   { value: "Travel & Tourism", label: "Travel & Tourism" }
 ];
 
@@ -104,6 +104,7 @@ export const currentDepartmentOptions = [
   { value: "Customer Support", label: "Customer Support" },
   { value: "Digital Marketing", label: "Digital Marketing" },
   { value: "Finance", label: "Finance" },
+  { value: "Fresher", label: "Fresher" },
   { value: "HR", label: "HR" },
   { value: "IT", label: "IT" },
   { value: "Marketing", label: "Marketing" },

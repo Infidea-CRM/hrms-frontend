@@ -98,6 +98,7 @@ function CallInfo() {
     experience: "",
     qualification: "",
     course: "",
+    customCourse: "",
     completionStatus: "",
     currentSalary: "",
     state: "",
@@ -416,6 +417,26 @@ function CallInfo() {
       return;
     }
     
+    // If course is changed
+    if (field === "course") {
+      if (value.toLowerCase() === "other") {
+        // When other is selected, clear the custom course field
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          customCourse: ""
+        }));
+      } else {
+        // When a specific course is selected, clear the custom course field
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          customCourse: ""
+        }));
+      }
+      return;
+    }
+    
     // If current department is changed
     if (field === "currentDepartment") {
       if (value.toLowerCase() === "other") {
@@ -547,7 +568,8 @@ function CallInfo() {
         gender: formData.gender,
         experience: formData.experience,
         qualification: formData.qualification,
-        course: formData.course,
+        course: formData.course === "Other" ? formData.customCourse : formData.course,
+        customCourse: formData.customCourse,
         completionStatus: formData.completionStatus,
         currentSalary: formData.currentSalary,
         state: formData.state,
@@ -657,7 +679,7 @@ function CallInfo() {
 
   // All fields in a single flat array - rearranged as requested
   const fields = [
-    { label: "Candidate's Name", key: "candidateName", icon: <MdPerson />, required: true, inputClass: "w-full" },
+    { label: "Candidate's Name", key: "candidateName", icon: <MdPerson />, required: false, inputClass: "w-full" },
     { 
       label: "Contact Number", 
       key: "contactNumber", 
@@ -1197,7 +1219,7 @@ function CallInfo() {
                 
                 // Check if the field is required based on call status
                 const requiresMandatoryFields = ["Lineup", "Walkin at Infidea"].includes(formData.callStatus);
-                const isFieldRequired = requiresMandatoryFields ? required : (key === "candidateName" || key === "contactNumber" || key === "callStatus" || key === "callDuration");
+                const isFieldRequired = requiresMandatoryFields ? required : (key === "contactNumber" || key === "callStatus" || key === "callDuration");
                 
                 // Insert locality field right after city field when city is Indore
                 if (key === "city" && showLocalityField) {
@@ -1354,6 +1376,19 @@ function CallInfo() {
                             onChange={(e) => handleChange("customLineupProcess", e.target.value)}
                             placeholder="Custom process"
                             required={isFieldRequired && formData.lineupProcess.toLowerCase() === "others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "course" && formData.course === "Other" && (
+                          <input
+                            type="text"
+                            value={formData.customCourse || ""}
+                            onChange={(e) => handleChange("customCourse", e.target.value)}
+                            placeholder="Enter course name"
+                            required={isFieldRequired && formData.course === "Other"}
                             className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                               : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}

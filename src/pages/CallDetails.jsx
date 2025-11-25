@@ -10,9 +10,6 @@ import {
 } from "@windmill/react-ui";
 import React, { useState, useContext, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-
-//internal import
-import TableLoading from "@/components/preloader/TableLoading";
 import NotFound from "@/components/table/NotFound";
 import useFilter from "@/hooks/useFilter";
 import EmployeeServices from "@/services/EmployeeServices";
@@ -79,8 +76,6 @@ const CallDetails = () => {
   // Add these new states for the filter dropdowns
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [activeFilterColumn, setActiveFilterColumn] = useState(null);
-
-  const { setIsUpdate } = useContext(SidebarContext);
   const { state } = useContext(AdminContext);
   const { adminInfo } = state;
   const isAdmin = adminInfo?.isAdmin || false;
@@ -488,6 +483,47 @@ const CallDetails = () => {
     if (currentPage < displayTotalPages) {
       setCurrentPage(currentPage + 1);
     }
+  };
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= displayTotalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Generate page numbers to display (always show at least 10 pages if available)
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 10;
+    
+    if (displayTotalPages <= maxVisiblePages) {
+      // Show all pages if total is less than or equal to maxVisiblePages
+      for (let i = 1; i <= displayTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Always show 10 pages, centered around current page when possible
+      let startPage = currentPage - Math.floor(maxVisiblePages / 2);
+      let endPage = currentPage + Math.floor(maxVisiblePages / 2) - 1;
+      
+      // Adjust if we're near the beginning
+      if (startPage < 1) {
+        startPage = 1;
+        endPage = maxVisiblePages;
+      }
+      
+      // Adjust if we're near the end
+      if (endPage > displayTotalPages) {
+        endPage = displayTotalPages;
+        startPage = Math.max(1, displayTotalPages - maxVisiblePages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
   };
 
   // Update the applyFilters function to handle non-array values
@@ -1376,35 +1412,96 @@ const CallDetails = () => {
               />
               
               {/* Pagination controls - at bottom of cards */}
-              {filteredData.length > 0 && (
-                <div className="flex justify-center items-center mt-6 mb-4 space-x-2">
+              {filteredData.length > 0 && displayTotalPages > 0 && (
+                <div className="flex justify-center items-center mt-6 mb-4 space-x-1 flex-wrap gap-1">
+                  {/* Previous Button */}
                   <button
                     onClick={goToPrevPage}
                     disabled={currentPage === 1}
-                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
+                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md transition-colors ${
                       currentPage === 1
                         ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                         : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
                     }`}
+                    title="Previous page"
                   >
                     <FaChevronLeft className="h-4 w-4" />
                   </button>
                   
-                  <span className="text-sm text-gray-700 dark:text-gray-300 px-3">
-                    Page {currentPage} of {displayTotalPages}
-                  </span>
+                  {/* First Page (if not in visible range) */}
+                  {displayTotalPages > 10 && getPageNumbers()[0] > 1 && (
+                    <>
+                      <button
+                        onClick={() => goToPage(1)}
+                        className={`flex items-center justify-center min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
+                          currentPage === 1
+                            ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                            : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'
+                        }`}
+                        title="Go to page 1"
+                      >
+                        1
+                      </button>
+                      {getPageNumbers()[0] > 2 && (
+                        <span className="px-1 text-gray-500 dark:text-gray-400">...</span>
+                      )}
+                    </>
+                  )}
                   
+                  {/* Page Numbers */}
+                  {getPageNumbers().map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      onClick={() => goToPage(pageNum)}
+                      className={`flex items-center justify-center min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
+                        currentPage === pageNum
+                          ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'
+                      }`}
+                      title={`Go to page ${pageNum}`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                  
+                  {/* Last Page (if not in visible range) */}
+                  {displayTotalPages > 10 && getPageNumbers()[getPageNumbers().length - 1] < displayTotalPages && (
+                    <>
+                      {getPageNumbers()[getPageNumbers().length - 1] < displayTotalPages - 1 && (
+                        <span className="px-1 text-gray-500 dark:text-gray-400">...</span>
+                      )}
+                      <button
+                        onClick={() => goToPage(displayTotalPages)}
+                        className={`flex items-center justify-center min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
+                          currentPage === displayTotalPages
+                            ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                            : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'
+                        }`}
+                        title={`Go to page ${displayTotalPages}`}
+                      >
+                        {displayTotalPages}
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Next Button */}
                   <button
                     onClick={goToNextPage}
                     disabled={currentPage === displayTotalPages}
-                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md ${
+                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md transition-colors ${
                       currentPage === displayTotalPages
                         ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                         : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
                     }`}
+                    title="Next page"
                   >
                     <FaChevronRight className="h-4 w-4" />
                   </button>
+                  
+                  {/* Page Info */}
+                  <span className="text-sm text-gray-600 dark:text-gray-400 px-2 ml-1">
+                    ({currentPage} / {displayTotalPages})
+                  </span>
                 </div>
               )}
             </>

@@ -13,7 +13,7 @@ import WalkinsTable from "../components/walkins/WalkinsTable";
 import  EmployeeServices from "@/services/EmployeeServices";
 import useFilter from "@/hooks/useFilter";
 import { SidebarContext } from "@/context/SidebarContext";
-import useAsync from "@/hooks/useAsync";
+import { AdminContext } from "@/context/AdminContext";
 import TableLoading from "@/components/preloader/TableLoading";
 import AnimatedContent from "@/components/common/AnimatedContent";
 import DatePicker from "react-datepicker";
@@ -54,6 +54,20 @@ function Walkins() {
 
 
   const { setIsUpdate } = useContext(SidebarContext);
+  const { state } = useContext(AdminContext);
+  const { adminInfo } = state;
+  const isAdmin = adminInfo?.isAdmin || false;
+
+  // State for API data with pagination
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [totalWalkins, setTotalWalkins] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  
+  // Add searchTerm state to store the current search input
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Add filter state
   const [filters, setFilters] = useState({
     name: "",
@@ -84,30 +98,32 @@ function Walkins() {
     };
   }, [showForm, showViewModal]);
 
-  // Add a useEffect to reload data when refreshKey changes
-  useEffect(() => {
-    // This will trigger the useAsync hook to refetch data
-    setIsUpdate(true);
-  }, [refreshKey, setIsUpdate]);
-
-  const { data, loading, error} = useAsync(EmployeeServices.getWalkinsData);
   const { handleErrorNotification } = useError();
 
-
-  // Show loading notification
+  // Fetch walkins data with pagination and search
   useEffect(() => {
-    // We'll skip loading notifications as they can be intrusive
-    // Loading state is already shown in the UI with the loading indicator
-  }, [loading, refreshKey]);
+    const fetchWalkins = async () => {
+      try {
+        setLoading(true);
+        const response = await EmployeeServices.getWalkinsData(currentPage, itemsPerPage, searchTerm);
+        setApiData(response);
+        setTotalWalkins(response?.totalWalkins || 0);
+        setTotalPages(response?.totalPages || 0);
+        setError("");
+      } catch (err) {
+        setError(err.message || "Failed to fetch walkins");
+        setApiData(null);
+        handleErrorNotification(err, "Walkins");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Set walkins when data is loaded
-  useEffect(() => {
-    if (data?.walkins) {
-      setWalkins(data.walkins);
-    } else if (error) {
-      handleErrorNotification(error, "Walkins");
-    }
-  }, [data, error, refreshKey, handleErrorNotification]);
+    fetchWalkins();
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm]);
+
+  // Map API response to match expected format
+  const data = apiData ? { walkins: apiData.walkins || [] } : null;
 
   const {
     walkinsRef,  
@@ -131,6 +147,7 @@ function Walkins() {
     if (walkinsRef && walkinsRef.current) {
       walkinsRef.current.value = "";
     }
+    setSearchTerm("");
     handleSubmitWalkins("");
     setDateRange({ startDate: null, endDate: null });
     handleDateRangeTypeChange("day");
@@ -155,9 +172,46 @@ function Walkins() {
   };
 
   const goToNextPage = () => {
-    if (currentPage < totalPages) {
+    if (currentPage < displayTotalPages) {
       setCurrentPage(currentPage + 1);
     }
+  };
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= displayTotalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Generate page numbers to display (always show at least 10 pages if available)
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 10;
+    
+    if (displayTotalPages <= maxVisiblePages) {
+      for (let i = 1; i <= displayTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      let startPage = currentPage - Math.floor(maxVisiblePages / 2);
+      let endPage = currentPage + Math.floor(maxVisiblePages / 2) - 1;
+      
+      if (startPage < 1) {
+        startPage = 1;
+        endPage = maxVisiblePages;
+      }
+      
+      if (endPage > displayTotalPages) {
+        endPage = displayTotalPages;
+        startPage = Math.max(1, displayTotalPages - maxVisiblePages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
   };
 
   // Calculate total pages - this is just a mock implementation
@@ -169,8 +223,8 @@ function Walkins() {
       })
     : (dataTable || []);
   
-  
-  const totalPages = Math.ceil(filteredByStatus.length / itemsPerPage);
+  // Use backend pagination totalPages, but fallback to client-side calculation for filtered data
+  const displayTotalPages = totalPages || Math.ceil(filteredByStatus.length / itemsPerPage);
 
   // Toggle sort order when header is clicked
   const handleSortByField = (field) => {
@@ -319,7 +373,7 @@ function Walkins() {
   const renderTable = () => {
     return (
       <>
-      <span class="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {filteredByStatus.length}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalWalkins || filteredByStatus.length}</span>
 
       {loading ? (
         // <Loading loading={loading} />
@@ -362,6 +416,10 @@ function Walkins() {
                     <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
                   )}</TableCell>
         
+                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("createdBy")}>Registered By {sortBy === "createdBy" && (
+                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                  )}</TableCell>
+        
                   <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("walkinDate")}>Walkin Date {sortBy === "walkinDate" && (
                     <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
                   )}</TableCell>
@@ -374,13 +432,10 @@ function Walkins() {
               </TableHeader>
 
               <WalkinsTable 
-                walkins={filteredByStatus.slice(
-                  (currentPage - 1) * itemsPerPage,
-                  currentPage * itemsPerPage
-                )}
+                walkins={filteredByStatus}
                 onView={handleView}
                 onEdit={handleEdit}
-                searchTerm={walkinsRef?.current?.value || ""}
+                searchTerm={searchTerm || walkinsRef?.current?.value || ""}
                 highlightText={highlightText}
               />
             </Table>
@@ -497,7 +552,11 @@ function Walkins() {
                   type="text"
                   placeholder="Search candidate..."
                   ref={walkinsRef}
-                  onChange={(e) => handleSubmitWalkinWithHighlight(e)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    handleSubmitWalkinWithHighlight(e);
+                  }}
+                  value={searchTerm}
                   className="pl-4 pr-3 py-2.5 w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none rounded-l-md"
                 />
               </div>
@@ -652,7 +711,7 @@ function Walkins() {
               </div>
               
               {/* Pagination controls - moved from bottom to top */}
-              {filteredByStatus.length > 0 && (
+              {filteredByStatus.length > 0 && displayTotalPages > 0 && (
                 <div className="w-full sm:w-auto sm:flex-none sm:ml-auto">
                   <div className="flex items-center justify-center sm:justify-end space-x-1">
                     <button
@@ -667,15 +726,26 @@ function Walkins() {
                       <FaChevronLeft className="h-3 w-3" />
                     </button>
                     
-                    <span className="text-xs text-gray-700 dark:text-gray-300">
-                      {currentPage} / {totalPages}
-                    </span>
+                    {/* Page numbers */}
+                    {getPageNumbers().map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md text-xs ${
+                          currentPage === pageNum
+                            ? 'bg-[#1a5d96] dark:bg-[#e2692c] text-white font-semibold'
+                            : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
                     
                     <button
                       onClick={goToNextPage}
-                      disabled={currentPage === totalPages}
+                      disabled={currentPage === displayTotalPages}
                       className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md ${
-                        currentPage === totalPages
+                        currentPage === displayTotalPages
                           ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                           : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
                       }`}

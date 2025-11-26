@@ -29,7 +29,6 @@ import { notifySuccess, notifyError } from "@/utils/toast";
 import Loader from "../sprinkleLoader/Loader";
 import { 
   companyOptions as lineupCompanyOptions,
-  getProcessesByCompany,
   callStatusOptions,
   experienceOptions,
   genderOptions,
@@ -40,7 +39,6 @@ import {
 } from "@/utils/optionsData";
 import ProcessSelector from "@/components/common/ProcessSelector";
 import SearchableDropdown from "@/components/common/SearchableDropdown";
-import SearchableProcessDropdown from "@/components/common/SearchableProcessDropdown";
 import { formatLongDateAndTime } from "@/utils/dateFormatter";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -53,7 +51,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
   const [loading, setLoading] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState(null);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
-  const [filteredProcessOptions, setFilteredProcessOptions] = useState([{ value: "", label: "Select Process" }]);
   
   // State variables for dropdown data
   const [qualifications, setQualifications] = useState([]);
@@ -96,20 +93,33 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     lineupCompany: "",
     customLineupCompany: "",
     lineupProcess: "",
-    customLineupProcess: "",
-    lineupDate: null,
+    customLineupCompany: "",
     interviewDate: null,
-    walkinDate: null,
-    lineupRemarks: "",
-    walkinRemarks: ""
+    walkinDate: null
   });
 
-  const [showCallSummaryTooltip, setShowCallSummaryTooltip] = useState(null);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showDurationModal, setShowDurationModal] = useState(false);
 
   // Add this after your formData state initialization
   const [minDate] = useState(new Date());
+
+  // Helper function to safely parse dates
+  const parseDate = (dateValue) => {
+    if (!dateValue || dateValue === "" || dateValue === "-" || dateValue === "Invalid Date") {
+      return null;
+    }
+    // If it's already a Date object, validate it
+    if (dateValue instanceof Date) {
+      return !isNaN(dateValue.getTime()) ? dateValue : null;
+    }
+    // If it's a string, try to parse it
+    if (typeof dateValue === "string") {
+      const date = new Date(dateValue);
+      return !isNaN(date.getTime()) ? date : null;
+    }
+    return null;
+  };
 
   // Initialize form data when candidate data changes
   useEffect(() => {
@@ -141,26 +151,13 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         dataSaved: candidateData.dataSaved || "",
         lineupCompany: candidateData.lineupCompany || "",
         customLineupCompany: candidateData.customLineupCompany || "",
-        lineupProcess: candidateData.lineupProcess || "",
-        customLineupProcess: candidateData.customLineupProcess || "",
-        lineupDate: candidateData.lineupDate ? new Date(candidateData.lineupDate) : null,
-        interviewDate: candidateData.interviewDate ? new Date(candidateData.interviewDate) : null,
-        walkinDate: candidateData.walkinDate ? new Date(candidateData.walkinDate) : null,
-        lineupRemarks: candidateData.lineupRemarks || "",
-        walkinRemarks: candidateData.walkinRemarks || ""
+        lineupProcess: candidateData.lineupProcess || candidateData.customLineupProcess || "",
+        interviewDate: parseDate(candidateData.interviewDate),
+        walkinDate: parseDate(candidateData.walkinDate)
       });
     }
   }, [candidateData]);
 
-  // Update process options when company changes
-  useEffect(() => {
-    setFilteredProcessOptions(getProcessesByCompany(formData.lineupCompany));
-    
-    // Reset process selection when company changes (unless it's already a valid option)
-    if (formData.lineupProcess && !getProcessesByCompany(formData.lineupCompany).some(p => p.value === formData.lineupProcess)) {
-      setFormData(prev => ({ ...prev, lineupProcess: "" }));
-    }
-  }, [formData.lineupCompany]);
 
 
   // Check for user's preferred theme and watch for changes
@@ -401,16 +398,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       return;
     }
     
-    // If lineup company is set to others, also set lineup process to others
-    if (field === "lineupCompany" && value === "others") {
-      setFormData(prev => ({ 
-        ...prev, 
-        [field]: value,
-        lineupProcess: "others"
-      }));
-      return;
-    }
-    
     // Handle call status changes
     if (field === "callStatus") {
       // Reset date fields when status changes to prevent invalid date errors
@@ -418,7 +405,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         setFormData(prev => ({
           ...prev,
           [field]: value,
-          lineupDate: null,
           interviewDate: null
         }));
       } else if (value === "Walkin at Infidea") {
@@ -432,7 +418,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         setFormData(prev => ({
           ...prev,
           [field]: value,
-          lineupDate: null,
           interviewDate: null,
           walkinDate: null
         }));
@@ -482,13 +467,9 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         dataSaved: formData.dataSaved || "",
         lineupCompany: formData.lineupCompany === "others" ? formData.customLineupCompany : formData.lineupCompany,
         customLineupCompany: formData.customLineupCompany,
-        lineupProcess: formData.lineupProcess === "others" ? formData.customLineupProcess : formData.lineupProcess,
-        customLineupProcess: formData.customLineupProcess,
-        lineupDate: formData.lineupDate && formData.lineupDate instanceof Date && !isNaN(formData.lineupDate) ? formData.lineupDate.toISOString() : null,
+        lineupProcess: formData.lineupProcess,
         interviewDate: formData.interviewDate && formData.interviewDate instanceof Date && !isNaN(formData.interviewDate) ? formData.interviewDate.toISOString() : null,
-        walkinDate: formData.walkinDate && formData.walkinDate instanceof Date && !isNaN(formData.walkinDate) ? formData.walkinDate.toISOString() : null,
-        lineupRemarks: formData.lineupRemarks,
-        walkinRemarks: formData.walkinRemarks
+        walkinDate: formData.walkinDate && formData.walkinDate instanceof Date && !isNaN(formData.walkinDate) ? formData.walkinDate.toISOString() : null
       };
       
       // Call API to update candidate data
@@ -644,7 +625,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
             {required && <span className="text-red-500">*</span>}
           </label>
           <DatePicker
-            selected={formData[key]}
+            selected={formData[key] && formData[key] instanceof Date && !isNaN(formData[key].getTime()) ? formData[key] : null}
             onChange={(date) => handleChange(key, date)}
             minDate={minDate}
             dateFormat="dd/MM/yyyy"
@@ -671,74 +652,10 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
       label: "Lineup Process", 
       key: "lineupProcess", 
       icon: <MdBusinessCenter />, 
-      type: "custom",
-      options: filteredProcessOptions,
+      type: "text",
       required: false,
       inputClass: "w-full",
-      hidden: formData.callStatus !== "Lineup",
-      render: ({ key, label, icon, options, required, inputClass }) => (
-        <div className="flex flex-col relative">
-          <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-            <span className="text-base">{icon}</span>
-            {label}
-            {required && <span className="text-red-500">*</span>}
-          </label>
-          <SearchableProcessDropdown
-            options={options}
-            value={formData[key]}
-            onChange={(e) => handleChange(key, e.target.value)}
-            placeholder={`Search ${label}...`}
-            required={required}
-            disabled={loading}
-            darkMode={darkMode}
-            className={inputClass || ''}
-            phoneNumber={formData.whatsappNumber}
-          />
-          
-          {/* Custom inputs for "others" options */}
-          {(formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others") && (
-            <input
-              type="text"
-              value={formData.customLineupProcess || ""}
-              onChange={(e) => handleChange("customLineupProcess", e.target.value)}
-              placeholder="Custom process"
-              required={false}
-              className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
-                ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
-                : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
-            />
-          )}
-        </div>
-      )
-    },
-    { 
-      label: "Lineup Date", 
-      key: "lineupDate", 
-      icon: <MdAccessTime />, 
-      type: "custom",
-      required: false,
-      inputClass: "w-full",
-      hidden: formData.callStatus !== "Lineup",
-      render: ({ key, label, icon, required, inputClass }) => (
-        <div className="flex flex-col relative">
-          <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-            <span className="text-base">{icon}</span>
-            {label}
-            {required && <span className="text-red-500">*</span>}
-          </label>
-          <DatePicker
-            selected={formData[key]}
-            onChange={(date) => handleChange(key, date)}
-            minDate={minDate}
-            dateFormat="dd/MM/yyyy"
-            placeholderText="Select date"
-            required={required}
-            className={`px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
-              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
-              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} ${inputClass}`}
-          />
-        </div>
-      )
+      hidden: formData.callStatus !== "Lineup"
     },
     { 
       label: "Interview Date", 
@@ -756,7 +673,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
             {required && <span className="text-red-500">*</span>}
           </label>
           <DatePicker
-            selected={formData[key]}
+            selected={formData[key] && formData[key] instanceof Date && !isNaN(formData[key].getTime()) ? formData[key] : null}
             onChange={(date) => handleChange(key, date)}
             minDate={minDate}
             dateFormat="dd/MM/yyyy"
@@ -771,26 +688,6 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     },
     { label: "Call Duration", key: "callDuration", icon: <MdWatch />, type: "select", options: callDurationOptions, required: false, inputClass: "w-full" },
     { label: "Data Saved", key: "dataSaved", icon: <MdTask />, type: "select", options: dataSavedOptions, required: false, inputClass: "w-full" },
-    { 
-      label: "Lineup Remarks", 
-      key: "lineupRemarks", 
-      icon: <MdNotes />, 
-      type: "textarea",
-      required: false,
-      inputClass: "w-full",
-      hidden: formData.callStatus !== "Lineup",
-      span: "md:col-span-4 lg:col-span-4"
-    },
-    { 
-      label: "Walkin Remarks", 
-      key: "walkinRemarks", 
-      icon: <MdNotes />, 
-      type: "textarea",
-      required: false,
-      inputClass: "w-full",
-      hidden: formData.callStatus !== "Walkin at Infidea",
-      span: "md:col-span-4 lg:col-span-4"
-    },
   ];
 
   // Show locality field only when city is Indore
@@ -1068,25 +965,12 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
                         />
                         
                         {/* Custom inputs for "others" options */}
-                        {key === "lineupCompany" && (formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others") && (
+                        {key === "lineupCompany" && formData.lineupCompany.toLowerCase() === "others" && (
                           <input
                             type="text"
                             value={formData.customLineupCompany || ""}
                             onChange={(e) => handleChange("customLineupCompany", e.target.value)}
                             placeholder="Custom company"
-                            required={false}
-                            className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
-                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
-                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
-                          />
-                        )}
-                        
-                        {key === "lineupProcess" && (formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others") && (
-                          <input
-                            type="text"
-                            value={formData.customLineupProcess || ""}
-                            onChange={(e) => handleChange("customLineupProcess", e.target.value)}
-                            placeholder="Custom process"
                             required={false}
                             className={`mt-1.5 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 

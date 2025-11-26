@@ -15,7 +15,7 @@ import LineupsTable from "../components/lineups/LineupsTable";
 import  EmployeeServices from "@/services/EmployeeServices";
 import useFilter from "@/hooks/useFilter";
 import { SidebarContext } from "@/context/SidebarContext";
-import useAsync from "@/hooks/useAsync";
+import { AdminContext } from "@/context/AdminContext";
 import TableLoading from "@/components/preloader/TableLoading";
 import AnimatedContent from "@/components/common/AnimatedContent";
 import DatePicker from "react-datepicker";
@@ -93,6 +93,20 @@ function Lineups() {
   }, [showForm, showViewModal]);
 
   const { setIsUpdate } = useContext(SidebarContext);
+  const { state } = useContext(AdminContext);
+  const { adminInfo } = state;
+  const isAdmin = adminInfo?.isAdmin || false;
+
+  // State for API data with pagination
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [totalLineups, setTotalLineups] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  
+  // Add searchTerm state to store the current search input
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Add filter state
   const [filters, setFilters] = useState({
     company: "",
@@ -134,32 +148,30 @@ function Lineups() {
     navigate(newPath, { replace: true });
   }, [filters.status, location.pathname, navigate]);
 
-   // Add a useEffect to reload data when refreshKey changes
-   useEffect(() => {
-    // This will trigger the useAsync hook to refetch data
-    setIsUpdate(true);
-  }, [refreshKey, setIsUpdate]);
-
-  const { data, loading, error} = useAsync(EmployeeServices.getLineupsData);
-
-
-  // Show loading notification
+  // Fetch lineups data with pagination and search
   useEffect(() => {
-    // We'll skip loading notifications as they can be intrusive
-    // Loading state is already shown in the UI with the loading indicator
-  }, [loading, refreshKey]);
+    const fetchLineups = async () => {
+      try {
+        setLoading(true);
+        const response = await EmployeeServices.getLineupsData(currentPage, itemsPerPage, searchTerm);
+        setApiData(response);
+        setTotalLineups(response?.totalLineups || 0);
+        setTotalPages(response?.totalPages || 0);
+        setError("");
+      } catch (err) {
+        setError(err.message || "Failed to fetch lineups");
+        setApiData(null);
+        handleErrorNotification(err, "Lineups");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Set lineups when data is loaded
-  useEffect(() => {
-    if (data?.lineups) {
-      setLineups(data.lineups);
-      // Skip success notification for initial load to prevent notification fatigue
-      // Only notify for specific actions like create, update, delete
-    } else if (error) {
-      
-     handleErrorNotification(error, "Lineups");
-    }
-  }, [data, error, refreshKey]);
+    fetchLineups();
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm]);
+
+  // Map API response to match expected format
+  const data = apiData ? { lineups: apiData.lineups || [] } : null;
 
   // Update process options when company changes
   useEffect(() => {
@@ -193,6 +205,7 @@ function Lineups() {
     if (lineupsRef && lineupsRef.current) {
       lineupsRef.current.value = "";
     }
+    setSearchTerm("");
     handleSubmitLineups("");
     setDateRange({ startDate: null, endDate: null });
     handleDateRangeTypeChange("day");
@@ -226,9 +239,50 @@ function Lineups() {
   };
 
   const goToNextPage = () => {
-    if (currentPage < totalPages) {
+    if (currentPage < displayTotalPages) {
       setCurrentPage(currentPage + 1);
     }
+  };
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= displayTotalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Generate page numbers to display (always show at least 10 pages if available)
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 10;
+    
+    if (displayTotalPages <= maxVisiblePages) {
+      // Show all pages if total is less than or equal to maxVisiblePages
+      for (let i = 1; i <= displayTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Always show 10 pages, centered around current page when possible
+      let startPage = currentPage - Math.floor(maxVisiblePages / 2);
+      let endPage = currentPage + Math.floor(maxVisiblePages / 2) - 1;
+      
+      // Adjust if we're near the beginning
+      if (startPage < 1) {
+        startPage = 1;
+        endPage = maxVisiblePages;
+      }
+      
+      // Adjust if we're near the end
+      if (endPage > displayTotalPages) {
+        endPage = displayTotalPages;
+        startPage = Math.max(1, displayTotalPages - maxVisiblePages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
   };
 
   // Calculate total pages - this is just a mock implementation
@@ -240,8 +294,8 @@ function Lineups() {
       })
     : (dataTable || []);
   
-  
-  const totalPages = Math.ceil(filteredByStatus.length / itemsPerPage);
+  // Use backend pagination totalPages, but fallback to client-side calculation for filtered data
+  const displayTotalPages = totalPages || Math.ceil(filteredByStatus.length / itemsPerPage);
 
   // Toggle sort order when header is clicked
   const handleSortByField = (field) => {
@@ -454,7 +508,7 @@ function Lineups() {
   const renderTable = () => {
     return (
       <>
-      <span class="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {filteredByStatus.length}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalLineups || filteredByStatus.length}</span>
 
       {loading ? (
         // <Loading loading={loading} />
@@ -508,6 +562,9 @@ function Lineups() {
                   <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("process")}>Process {sortBy === "process" && (
                     <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
                   )}</TableCell>
+                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("createdBy")}>Registered By {sortBy === "createdBy" && (
+                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                  )}</TableCell>
                   <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("lineupDate")}>Lineup Date {sortBy === "lineupDate" && (
                     <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
                   )}</TableCell>
@@ -520,13 +577,10 @@ function Lineups() {
               </TableHeader>
 
               <LineupsTable 
-                lineups={filteredByStatus.slice(
-                  (currentPage - 1) * itemsPerPage,
-                  currentPage * itemsPerPage
-                )}
+                lineups={filteredByStatus}
                 onView={handleView}
                 onEdit={handleEdit}
-                searchTerm={lineupsRef?.current?.value || ""}
+                searchTerm={searchTerm || lineupsRef?.current?.value || ""}
                 highlightText={highlightText}
               />
             </Table>
@@ -721,7 +775,11 @@ function Lineups() {
                   type="text"
                   placeholder="Search candidate..."
                   ref={lineupsRef}
-                  onChange={(e) => handleSubmitLineupWithHighlight(e)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    handleSubmitLineupWithHighlight(e);
+                  }}
+                  value={searchTerm}
                   className="pl-4 pr-3 py-2.5 w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none rounded-l-md"
                 />
               </div>
@@ -891,7 +949,7 @@ function Lineups() {
               </div>
               
               {/* Pagination controls - moved from bottom to top */}
-              {filteredByStatus.length > 0 && (
+              {filteredByStatus.length > 0 && displayTotalPages > 0 && (
                 <div className="w-full sm:w-auto sm:flex-none sm:ml-auto">
                   <div className="flex items-center justify-center sm:justify-end space-x-1">
                     <button
@@ -906,15 +964,26 @@ function Lineups() {
                       <FaChevronLeft className="h-3 w-3" />
                     </button>
                     
-                    <span className="text-xs text-gray-700 dark:text-gray-300">
-                      {currentPage} / {totalPages}
-                    </span>
+                    {/* Page numbers */}
+                    {getPageNumbers().map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md text-xs ${
+                          currentPage === pageNum
+                            ? 'bg-[#1a5d96] dark:bg-[#e2692c] text-white font-semibold'
+                            : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
                     
                     <button
                       onClick={goToNextPage}
-                      disabled={currentPage === totalPages}
+                      disabled={currentPage === displayTotalPages}
                       className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md ${
-                        currentPage === totalPages
+                        currentPage === displayTotalPages
                           ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                           : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
                       }`}

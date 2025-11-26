@@ -33,7 +33,6 @@ import Loader from "../components/sprinkleLoader/Loader";
 import { useLocation, useNavigate } from "react-router";
 import ProcessSelector from "@/components/common/ProcessSelector";
 import SearchableDropdown from "@/components/common/SearchableDropdown";
-import SearchableProcessDropdown from "@/components/common/SearchableProcessDropdown";
 import { 
   companyOptions as lineupCompanyOptions, 
   callStatusOptions,
@@ -41,7 +40,6 @@ import {
   communicationOptions,
   sourceOptions,
   experienceOptions,
-  getProcessesByCompany,
   genderOptions,
   courseOptions,
   currentDepartmentOptions
@@ -62,7 +60,6 @@ function CallInfo() {
   const cityInputRef = useRef(null);
   const localityInputRef = useRef(null);
   const walkinDateRef = useRef(null);
-  const lineupDateRef = useRef(null);
   const interviewDateRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState(null);
@@ -85,8 +82,6 @@ function CallInfo() {
     localities: false
   });
 
-  // Add a new state for filtered process options
-  const [filteredProcessOptions, setFilteredProcessOptions] = useState([{ value: "", label: "Select Process" }]);
 
   // Initial form data - used for reset and initial state
   const initialFormData = {
@@ -117,12 +112,9 @@ function CallInfo() {
     lineupCompany: "",
     customLineupCompany: "",
     lineupProcess: "",
-    customLineupProcess: "",
-    lineupDate: "",
+    customLineupCompany: "",
     interviewDate: "",
     walkinDate: "",
-    lineupRemarks: "",
-    walkinRemarks: "",
     workMode: "Work From Home",
     jobInterestedIn: ""
   };
@@ -329,17 +321,6 @@ function CallInfo() {
     fetchLocalities();
   }, [formData.city]);
 
-  // Add useEffect to update process options when company changes
-  useEffect(() => {
-    if (isResettingRef.current) return;
-    
-    setFilteredProcessOptions(getProcessesByCompany(formData.lineupCompany));
-    
-    // Reset process selection when company changes (unless it's already a valid option)
-    if (formData.lineupProcess && !getProcessesByCompany(formData.lineupCompany).some(p => p.value === formData.lineupProcess)) {
-      setFormData(prev => ({ ...prev, lineupProcess: "" }));
-    }
-  }, [formData.lineupCompany]);
 
 
   // Add keyboard shortcut listener for Ctrl+"
@@ -460,41 +441,17 @@ function CallInfo() {
     // If lineup company is changed
     if (field === "lineupCompany") {
       if (value.toLowerCase() === "others") {
-        // When others is selected, set both company and process to others
+        // When others is selected
         setFormData(prev => ({ 
           ...prev, 
-          [field]: value,
-          lineupProcess: "others"
-          // Don't clear custom fields anymore
+          [field]: value
         }));
       } else {
         // When a specific company is selected
         setFormData(prev => ({ 
           ...prev, 
           [field]: value,
-          // Only clear if process is not others
-          ...(prev.lineupProcess.toLowerCase() !== "others" ? { customLineupCompany: "", customLineupProcess: "" } : {})
-        }));
-      }
-      return;
-    }
-    
-    // If lineup process is changed
-    if (field === "lineupProcess") {
-      if (value.toLowerCase() === "others") {
-        // When others is selected for process
-        setFormData(prev => ({ 
-          ...prev, 
-          [field]: value
-          // Don't clear custom fields anymore
-        }));
-      } else {
-        // When a specific process is selected
-        setFormData(prev => ({ 
-          ...prev, 
-          [field]: value,
-          // Only clear if company is not others
-          ...(prev.lineupCompany.toLowerCase() !== "others" ? { customLineupProcess: "" } : {})
+          customLineupCompany: ""
         }));
       }
       return;
@@ -534,27 +491,11 @@ function CallInfo() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Check if mandatory fields are required based on callStatus
-    const requiresMandatoryFields = ["Lineup", "Walkin at Infidea"].includes(formData.callStatus);
-    
-    if (requiresMandatoryFields) {
-      // Validate mandatory fields when required
-      // Validate lineup fields if status is "lineup"
-      if (formData.callStatus === "Lineup" && 
-          (!formData.lineupCompany || !formData.lineupProcess || 
-           !formData.lineupDate || !formData.interviewDate)) {
-        notifyError("Please fill in all lineup fields");
-        setLoading(false);
-        return;
-      }
-
-      // Validate walkin date if status is "walkin"
-      if (formData.callStatus === "Walkin at Infidea" && (!formData.walkinDate)) {
-        notifyError("Please provide a walkin date");
-        setLoading(false);
-        return;
-      }
-      
+    // Validate mobile number is required
+    if (!formData.contactNumber || formData.contactNumber.trim() === "") {
+      notifyError("Mobile number is required");
+      setLoading(false);
+      return;
     }
     
     setLoading(true);
@@ -587,13 +528,9 @@ function CallInfo() {
         locality: formData.locality,
         lineupCompany: formData.lineupCompany === "others" ? formData.customLineupCompany : formData.lineupCompany,
         customLineupCompany: formData.customLineupCompany,
-        lineupProcess: formData.lineupProcess === "others" ? formData.customLineupProcess : formData.lineupProcess,
-        customLineupProcess: formData.customLineupProcess,
-        lineupDate: formData.lineupDate,
+        lineupProcess: formData.lineupProcess,
         interviewDate: formData.interviewDate,
         walkinDate: formData.walkinDate,
-        lineupRemarks: formData.lineupRemarks,
-        walkinRemarks: formData.walkinRemarks,
         jobInterestedIn: formData.jobInterestedIn
       };
       // Call API
@@ -702,21 +639,21 @@ function CallInfo() {
       inputClass: "w-full"
     },
     // { label: "Sourced", key: "source", icon: <MdSource />, type: "select", options: sourceOptions, required: true, inputClass: "w-full" },
-    { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: true, inputClass: "w-full" },
-    { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptions, required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus), inputClass: "w-full" },
+    { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: false, inputClass: "w-full" },
+    { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptions, required: false, inputClass: "w-full" },
     { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
-    { label: "State", key: "state", icon: <MdPublic />, type: "select", options: stateOptions, required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus), inputClass: "w-full", loading: loadingDropdownData.states },
-    { label: "City", key: "city", icon: <MdLocationCity />, type: "select", options: cityOptions, required: true, inputClass: "w-full", loading: loadingDropdownData.cities },
-    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: ["Lineup", "Walkin at Infidea"].includes(formData.callStatus), inputClass: "w-full", loading: loadingDropdownData.qualifications },
+    { label: "State", key: "state", icon: <MdPublic />, type: "select", options: stateOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.states },
+    { label: "City", key: "city", icon: <MdLocationCity />, type: "select", options: cityOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.cities },
+    { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.qualifications },
     { label: "Course", key: "course", icon: <MdSchool />, type: "select", options: courseOptions, required: false, inputClass: "w-full" },
     { label: "Completion Status", key: "completionStatus", icon: <MdTask />, type: "select", options: [{ value: "Completed", label: "Completed" }, { value: "Pursuing", label: "Pursuing" }], required: false, inputClass: "w-full" },
     { label: "Current Salary", key: "currentSalary", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
-    { label: "Expected Salary", key: "salaryExpectations", icon: <IoCashOutline />, required: true, inputClass: "w-full" },
+    { label: "Expected Salary", key: "salaryExpectations", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
     { label: "Current Department", key: "currentDepartment", icon: <MdBusinessCenter />, type: "select", options: currentDepartmentOptions, required: false, inputClass: "w-full" },
     { label: "Current Profile", key: "currentProfile", icon: <MdWork />, required: false, inputClass: "w-full" },
-    { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: true, inputClass: "w-full" },
-    { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: true, inputClass: "w-full" },
-    { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: true, inputClass: "w-full" },
+    { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: false, inputClass: "w-full" },
+    { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: false, inputClass: "w-full" },
+    { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: false, inputClass: "w-full" },
     { 
       label: "Walkin Date", 
       key: "walkinDate", 
@@ -761,78 +698,10 @@ function CallInfo() {
       label: "Lineup Process", 
       key: "lineupProcess", 
       icon: <MdTask />, 
-      type: "custom", 
-      options: filteredProcessOptions,
-      required: formData.callStatus === "Lineup",
+      type: "text",
+      required: false,
       inputClass: "w-full",
-      hidden: formData.callStatus !== "Lineup",
-      render: ({ key, label, icon, options, required, inputClass }) => (
-        <div className="flex flex-col relative">
-          <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-            <span className="text-base">{icon}</span>
-            {label}
-            {required && <span className="text-red-500">*</span>}
-          </label>
-          <SearchableProcessDropdown
-            options={options}
-            value={formData[key]}
-            onChange={(e) => handleChange(key, e.target.value)}
-            placeholder={`Search ${label}...`}
-            required={required}
-            disabled={loading}
-            darkMode={darkMode}
-            className={inputClass || ''}
-            phoneNumber={formData.whatsappNumber}
-          />
-          
-          {/* Custom input for "others" options */}
-          {(formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others") && (
-            <input
-              type="text"
-              value={formData.customLineupProcess || ""}
-              onChange={(e) => handleChange("customLineupProcess", e.target.value)}
-              placeholder="Enter specific process"
-              required={required && (formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others")}
-              disabled={loading}
-              className={`mt-2 px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
-                ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
-                : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full ${
-                  loading ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : ''
-                }`}
-            />
-          )}
-        </div>
-      )
-    },
-    { 
-      label: "Lineup Date", 
-      key: "lineupDate", 
-      icon: <MdAccessTime />, 
-      type: "custom",
-      required: formData.callStatus === "Lineup",
-      inputClass: "w-full",
-      hidden: formData.callStatus !== "Lineup",
-      render: ({ key, label, icon, required, inputClass }) => (
-        <div className="flex flex-col relative">
-          <label className={`flex items-center gap-1.5 text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-            <span className="text-base">{icon}</span>
-            {label}
-            {required && <span className="text-red-500">*</span>}
-          </label>
-          <DatePicker
-            selected={formData[key] ? new Date(formData[key]) : null}
-            onChange={(date) => handleChange(key, date ? date.toISOString() : "")}
-            minDate={minDate}
-            dateFormat="dd/MM/yyyy"
-            placeholderText="Select date"
-            required={required}
-            ref={key === "lineupDate" ? lineupDateRef : undefined}
-            className={`px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
-              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
-              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} ${inputClass}`}
-          />
-        </div>
-      )
+      hidden: formData.callStatus !== "Lineup"
     },
     { 
       label: "Interview Date", 
@@ -866,27 +735,6 @@ function CallInfo() {
     },
     { label: "Call Duration", key: "callDuration", icon: <MdWatch />, type: "select", options: callDurationOptions, required: false, inputClass: "w-full" },
     { label: "Data Saved", key: "dataSaved", icon: <MdTask />, type: "select", options: [{ value: "Saved", label: "Saved" }, { value: "Not Saved", label: "Not Saved" }], required: false, inputClass: "w-full" },
-    
-    { 
-      label: "Lineup Remarks", 
-      key: "lineupRemarks", 
-      icon: <MdComment />, 
-      type: "textarea",
-      required: false,
-      inputClass: "w-full",
-      hidden: formData.callStatus !== "Lineup",
-      span: "lg:col-span-5 md:col-span-3"
-    },
-    { 
-      label: "Walkin Remarks", 
-      key: "walkinRemarks", 
-      icon: <MdComment />, 
-      type: "textarea",
-      required: false,
-      inputClass: "w-full",
-      hidden: formData.callStatus !== "Walkin at Infidea",
-      span: "lg:col-span-5 md:col-span-3"
-    },
   ];
 
   // Show locality field only when city is Indore
@@ -1217,9 +1065,8 @@ function CallInfo() {
                   return null;
                 }
                 
-                // Check if the field is required based on call status
-                const requiresMandatoryFields = ["Lineup", "Walkin at Infidea"].includes(formData.callStatus);
-                const isFieldRequired = requiresMandatoryFields ? required : (key === "contactNumber" || key === "callStatus" || key === "callDuration");
+                // Check if the field is required - only mobileNo is mandatory
+                const isFieldRequired = key === "contactNumber" ? true : false;
                 
                 // Insert locality field right after city field when city is Indore
                 if (key === "city" && showLocalityField) {
@@ -1356,26 +1203,13 @@ function CallInfo() {
                         />
                         
                         {/* Custom inputs for "others" options */}
-                        {key === "lineupCompany" && (formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others") && (
+                        {key === "lineupCompany" && formData.lineupCompany.toLowerCase() === "others" && (
                           <input
                             type="text"
                             value={formData.customLineupCompany || ""}
                             onChange={(e) => handleChange("customLineupCompany", e.target.value)}
                             placeholder="Custom company"
                             required={isFieldRequired && formData.lineupCompany.toLowerCase() === "others"}
-                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
-                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
-                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
-                          />
-                        )}
-                        
-                        {key === "lineupProcess" && (formData.lineupCompany.toLowerCase() === "others" || formData.lineupProcess.toLowerCase() === "others") && (
-                          <input
-                            type="text"
-                            value={formData.customLineupProcess || ""}
-                            onChange={(e) => handleChange("customLineupProcess", e.target.value)}
-                            placeholder="Custom process"
-                            required={isFieldRequired && formData.lineupProcess.toLowerCase() === "others"}
                             className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                               : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}

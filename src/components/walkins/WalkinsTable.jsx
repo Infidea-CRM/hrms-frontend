@@ -66,6 +66,13 @@ const WalkinsTable = ({walkins, onView, onEdit, searchTerm = "", highlightText})
             </span>
           </TableCell>
 
+        {/* Registered By */}
+        <TableCell>
+          <span className="text-sm">
+            {walkin?.createdBy?.name?.en || walkin?.createdBy?.name || "Unknown"}
+          </span>
+        </TableCell>
+
         {/* Walkin Date */}
         <TableCell>
           <span className="text-sm" >

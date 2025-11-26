@@ -95,6 +95,13 @@ const LineupsTable = ({lineups, onView, onEdit, searchTerm = "", highlightText})
             </span>
           </TableCell>
 
+        {/* Registered By */}
+        <TableCell>
+          <span className="text-sm">
+            {lineup?.createdBy?.name?.en || lineup?.createdBy?.name || "Unknown"}
+          </span>
+        </TableCell>
+
         {/* Lineup Date */}
         <TableCell>
           <span className="text-sm" >

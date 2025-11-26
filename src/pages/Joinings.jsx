@@ -13,7 +13,7 @@ import JoiningsTable from "../components/joinings/JoiningsTable";
 import  EmployeeServices from "@/services/EmployeeServices";
 import useFilter from "@/hooks/useFilter";
 import { SidebarContext } from "@/context/SidebarContext";
-import useAsync from "@/hooks/useAsync";
+import { AdminContext } from "@/context/AdminContext";
 import TableLoading from "@/components/preloader/TableLoading";
 import AnimatedContent from "@/components/common/AnimatedContent";
 import DatePicker from "react-datepicker";
@@ -75,6 +75,20 @@ function Joinings() {
   const [selectedFyStartYear, setSelectedFyStartYear] = useState(defaultFyStartYear);
 
   const { setIsUpdate } = useContext(SidebarContext);
+  const { state } = useContext(AdminContext);
+  const { adminInfo } = state;
+  const isAdmin = adminInfo?.isAdmin || false;
+
+  // State for API data with pagination
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [totalJoinings, setTotalJoinings] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  
+  // Add searchTerm state to store the current search input
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Add filter state
   const [filters, setFilters] = useState({
     name: "",
@@ -108,30 +122,35 @@ function Joinings() {
     };
   }, [showForm, showViewModal, showFySummaryModal]);
 
-   // Add a useEffect to reload data when refreshKey changes
-   useEffect(() => {
-    // This will trigger the useAsync hook to refetch data
-    setIsUpdate(true);
-  }, [refreshKey, setIsUpdate]);
-
-  const { data, loading, error} = useAsync(EmployeeServices.getJoiningsData);
   const { handleErrorNotification } = useError();
 
-
-  // Show loading notification
+  // Fetch joinings data with pagination and search
   useEffect(() => {
-    // We'll skip loading notifications as they can be intrusive
-    // Loading state is already shown in the UI with the loading indicator
-  }, [loading, refreshKey]);
+    const fetchJoinings = async () => {
+      try {
+        setLoading(true);
+        const response = await EmployeeServices.getJoiningsData(currentPage, itemsPerPage, searchTerm);
+        setApiData(response);
+        setTotalJoinings(response?.totalJoinings || 0);
+        setTotalPages(response?.totalPages || 0);
+        setError("");
+      } catch (err) {
+        setError(err.message || "Failed to fetch joinings");
+        setApiData(null);
+        handleErrorNotification(err, "Joinings");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Set joinings when data is loaded
-  useEffect(() => {
-    if (data?.joinings) {
-      setJoinings(data.joinings);
-    } else if (error) {
-      handleErrorNotification(error, "Joinings");
-    }
-  }, [data, error, refreshKey, handleErrorNotification]);
+    fetchJoinings();
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm]);
+
+  // Map API response to match expected format (preserve incentiveSummary)
+  const data = apiData ? { 
+    joinings: apiData.joinings || [],
+    incentiveSummary: apiData.incentiveSummary || null
+  } : null;
 
   const {
     joiningsRef,  
@@ -156,6 +175,7 @@ function Joinings() {
     if (joiningsRef && joiningsRef.current) {
       joiningsRef.current.value = "";
     }
+    setSearchTerm("");
     handleSubmitJoinings("");
     setDateRange({ startDate: null, endDate: null });
     handleDateRangeTypeChange("day");
@@ -180,9 +200,46 @@ function Joinings() {
   };
 
   const goToNextPage = () => {
-    if (currentPage < totalPages) {
+    if (currentPage < displayTotalPages) {
       setCurrentPage(currentPage + 1);
     }
+  };
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= displayTotalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Generate page numbers to display (always show at least 10 pages if available)
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 10;
+    
+    if (displayTotalPages <= maxVisiblePages) {
+      for (let i = 1; i <= displayTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      let startPage = currentPage - Math.floor(maxVisiblePages / 2);
+      let endPage = currentPage + Math.floor(maxVisiblePages / 2) - 1;
+      
+      if (startPage < 1) {
+        startPage = 1;
+        endPage = maxVisiblePages;
+      }
+      
+      if (endPage > displayTotalPages) {
+        endPage = displayTotalPages;
+        startPage = Math.max(1, displayTotalPages - maxVisiblePages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
   };
 
   // Calculate total pages - this is just a mock implementation
@@ -194,8 +251,8 @@ function Joinings() {
       })
     : (dataTable || []);
   
-  
-  const totalPages = Math.ceil(filteredByStatus.length / itemsPerPage);
+  // Use backend pagination totalPages, but fallback to client-side calculation for filtered data
+  const displayTotalPages = totalPages || Math.ceil(filteredByStatus.length / itemsPerPage);
 
   // Toggle sort order when header is clicked
   const handleSortByField = (field) => {
@@ -364,7 +421,7 @@ function Joinings() {
   const renderTable = () => {
     return (
       <>
-      <span class="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {filteredByStatus.length}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalJoinings || filteredByStatus.length}</span>
 
       {loading ? (
         // <Loading loading={loading} />
@@ -415,6 +472,10 @@ function Joinings() {
                     <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
                   )}</TableCell>
 
+                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("createdBy")}>Registered By {sortBy === "createdBy" && (
+                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                  )}</TableCell>
+
                   <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("joiningType")}>Joining Type{sortBy === "joiningType" && (
                     <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
                   )}</TableCell>
@@ -438,12 +499,9 @@ function Joinings() {
               </TableHeader>
 
               <JoiningsTable 
-                joinings={filteredByStatus.slice(
-                  (currentPage - 1) * itemsPerPage,
-                  currentPage * itemsPerPage
-                )}
+                joinings={filteredByStatus}
                 onView={handleView}
-                searchTerm={joiningsRef?.current?.value || ""}
+                searchTerm={searchTerm || joiningsRef?.current?.value || ""}
                 highlightText={highlightText}
               />
             </Table>
@@ -660,7 +718,11 @@ function Joinings() {
                   type="text"
                   placeholder="Search candidate..."
                   ref={joiningsRef}
-                  onChange={(e) => handleSubmitJoiningWithHighlight(e)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    handleSubmitJoiningWithHighlight(e);
+                  }}
+                  value={searchTerm}
                   className="pl-4 pr-3 py-0 h-10 w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none rounded-l-md"
                   style={{ minWidth: 0 }}
                 />
@@ -694,7 +756,7 @@ function Joinings() {
                 {new Date().toLocaleString('default', { month: 'long' })}
                 </div>
                 <div className="flex-1 bg-white dark:bg-gray-700 flex items-center justify-center px-3">
-                  <span className="text-base font-bold text-gray-800 dark:text-white">{data.incentiveSummary?.counts.total || 0}</span>
+                  <span className="text-base font-bold text-gray-800 dark:text-white">{apiData?.incentiveSummary?.counts.total || 0}</span>
                 </div>
               </div>
 
@@ -702,7 +764,7 @@ function Joinings() {
                <div className="flex items-center gap-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-md shadow-md">
                  <span className="text-xs font-semibold">Domestic:</span>
                  <span className="text-base font-bold text-green-600 dark:text-green-400">
-                   {data.incentiveSummary?.counts.domestic || 0}
+                   {apiData?.incentiveSummary?.counts.domestic || 0}
                  </span>
                </div>
                
@@ -710,7 +772,7 @@ function Joinings() {
                <div className="flex items-center gap-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-md shadow-md">
                  <span className="text-xs font-semibold">International:</span>
                  <span className="text-base font-bold text-green-600 dark:text-green-400">
-                   {data.incentiveSummary?.counts.international || 0}
+                   {apiData?.incentiveSummary?.counts.international || 0}
                  </span>
                </div>
                
@@ -718,7 +780,7 @@ function Joinings() {
                <div className="flex items-center gap-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-md shadow-md">
                  <span className="text-xs font-semibold">Mid-Lateral:</span>
                  <span className="text-base font-bold text-green-600 dark:text-green-400">
-                   {data.incentiveSummary?.counts.midLateral || 0}
+                   {apiData?.incentiveSummary?.counts.midLateral || 0}
                  </span>
                </div>
                
@@ -726,7 +788,7 @@ function Joinings() {
                <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 px-3 py-2 rounded-md shadow-md">
                  <span className="text-xs font-semibold">Total Incentives:</span>
                  <span className="text-base font-bold text-indigo-700 dark:text-indigo-400">
-                   ₹{data.incentiveSummary?.incentives.total || 0}
+                   ₹{apiData?.incentiveSummary?.incentives.total || 0}
                  </span>
                </div>
              </div>
@@ -888,7 +950,7 @@ function Joinings() {
               </div>
               
               {/* Pagination controls - moved from bottom to top */}
-              {filteredByStatus.length > 0 && (
+              {filteredByStatus.length > 0 && displayTotalPages > 0 && (
                 <div className="w-full sm:w-auto sm:flex-none sm:ml-auto">
                   <div className="flex items-center justify-center sm:justify-end space-x-1">
                     <button
@@ -903,15 +965,26 @@ function Joinings() {
                       <FaChevronLeft className="h-3 w-3" />
                     </button>
                     
-                    <span className="text-xs text-gray-700 dark:text-gray-300">
-                      {currentPage} / {totalPages}
-                    </span>
+                    {/* Page numbers */}
+                    {getPageNumbers().map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md text-xs ${
+                          currentPage === pageNum
+                            ? 'bg-[#1a5d96] dark:bg-[#e2692c] text-white font-semibold'
+                            : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
                     
                     <button
                       onClick={goToNextPage}
-                      disabled={currentPage === totalPages}
+                      disabled={currentPage === displayTotalPages}
                       className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md ${
-                        currentPage === totalPages
+                        currentPage === displayTotalPages
                           ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                           : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
                       }`}

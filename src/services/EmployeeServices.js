@@ -256,12 +256,14 @@ const EmployeeServices = {
     return requests.post("/lineups/create", body);
   },
 
-  getLineupsData: async () => {
-    return requests.get("/lineups");
+  getLineupsData: async (page = 1, limit = 10, search = "") => {
+    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
+    return requests.get(`/lineups?page=${page}&limit=${limit}${searchParam}`);
   },
 
-  getWalkinsData: async () => {
-    return requests.get("/walkins");
+  getWalkinsData: async (page = 1, limit = 10, search = "") => {
+    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
+    return requests.get(`/walkins?page=${page}&limit=${limit}${searchParam}`);
   },
 
   createWalkinData: async (body) => {
@@ -280,8 +282,9 @@ const EmployeeServices = {
     return requests.post("/joinings/create", body);
   },
 
-  getJoiningsData: async () => {
-    return requests.get("/joinings");
+  getJoiningsData: async (page = 1, limit = 10, search = "") => {
+    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
+    return requests.get(`/joinings?page=${page}&limit=${limit}${searchParam}`);
   },
 
   updateJoiningData: async (joiningId, body) => {

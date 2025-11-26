@@ -77,6 +77,13 @@ const JoiningsTable = ({joinings, onView, searchTerm = "", highlightText}) => {
           </span>
         </TableCell>
 
+        {/* Registered By */}
+        <TableCell>
+          <span className="text-sm">
+            {joining?.createdBy?.name?.en || joining?.createdBy?.name || "Unknown"}
+          </span>
+        </TableCell>
+
         {/* Joining Type */}
         <TableCell>
           <span className="text-sm">

@@ -1120,14 +1120,13 @@ function CallInfo() {
                         <label className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           <span className="text-base"><MdLocationOn /></span>
                           Locality
-                          {requiresMandatoryFields && <span className="text-red-500">*</span>}
                         </label>
                         <SearchableDropdown
                           options={localityOptions}
                           value={formData.locality}
                           onChange={(e) => handleChange("locality", e.target.value)}
                           placeholder="Search locality..."
-                          required={requiresMandatoryFields}
+                          required={false}
                           disabled={loadingDropdownData.localities}
                           darkMode={darkMode}
                           className="w-full"

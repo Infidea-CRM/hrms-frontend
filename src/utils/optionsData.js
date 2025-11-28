@@ -528,16 +528,15 @@ export const workModeOptions = [
   { value: "Any Mode", label: "Any Mode" },
 ];
 
-// Notice Period options for filters
+// Notice Period options
 export const noticePeriodOptions = [
-  { value: "Immediate Joiner", label: "Immediate Joiner" },
-  { value: "7 Days", label: "7 Days" },
-  { value: "15 Days", label: "15 Days" },
-  { value: "30 Days", label: "30 Days" },
-  { value: "45 Days", label: "45 Days" },
-  { value: "60 Days", label: "60 Days" },
-  { value: "90 Days", label: "90 Days" },
-  { value: "More than 90 Days", label: "More than 90 Days" },
+  { value: "7 days", label: "7 days" },
+  { value: "15 days", label: "15 days" },
+  { value: "30 days", label: "30 days" },
+  { value: "45 days", label: "45 days" },
+  { value: "60 days", label: "60 days" },
+  { value: "90 days", label: "90 days" },
+  { value: "more", label: "More" }
 ];
 
 // Relocation options for filters

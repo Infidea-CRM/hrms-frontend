@@ -42,7 +42,8 @@ import {
   experienceOptions,
   genderOptions,
   courseOptions,
-  currentDepartmentOptions
+  currentDepartmentOptions,
+  noticePeriodOptions
 } from "@/utils/optionsData";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -95,6 +96,7 @@ function CallInfo() {
     course: "",
     customCourse: "",
     completionStatus: "",
+    completionYear: "",
     currentSalary: "",
     state: "",
     city: "",
@@ -104,10 +106,11 @@ function CallInfo() {
     currentDepartment: "",
     customCurrentDepartment: "",
     currentProfile: "",
-    shiftPreference: "Any Shift Works",
+    shiftPreference: "",
+    noticePeriod: "",
     callStatus: "",
     callSummary: "-",
-    callDuration: "1",
+    callDuration: "",
     dataSaved: "",
     lineupCompany: "",
     customLineupCompany: "",
@@ -470,7 +473,6 @@ function CallInfo() {
     localStorage.removeItem('callInfoFormTimestamp');
     setCities([]);
     setLocalities([]);
-    setFilteredProcessOptions([{ value: "", label: "Select Process" }]);
     setDuplicateInfo(null);
     setPhoneError("");
     setFormSavedTimestamp(null);
@@ -512,6 +514,7 @@ function CallInfo() {
         course: formData.course === "Other" ? formData.customCourse : formData.course,
         customCourse: formData.customCourse,
         completionStatus: formData.completionStatus,
+        completionYear: formData.completionYear,
         currentSalary: formData.currentSalary,
         state: formData.state,
         city: formData.city,
@@ -521,6 +524,7 @@ function CallInfo() {
         customCurrentDepartment: formData.customCurrentDepartment,
         currentProfile: formData.currentProfile,
         shift: formData.shiftPreference,
+        noticePeriod: formData.noticePeriod,
         callStatus: formData.callStatus,
         callDuration: formData.callDuration,
         dataSaved: formData.dataSaved,
@@ -580,7 +584,7 @@ function CallInfo() {
     value: `${i + 1}`, 
     label: `${i + 1} ${i === 0 ? 'Minute' : 'Minutes'}`
   }));
-  callDurationOptions.unshift({ value: "", label: "" });
+  callDurationOptions.unshift({ value: "", label: "Select Duration" });
 
   // Create qualification options from API data
   const qualificationOptions = [
@@ -612,6 +616,18 @@ function CallInfo() {
       value: locality.name || locality, 
       label: locality.name || locality 
     })) || [])
+  ];
+
+  // Create shift preference options with empty option
+  const shiftPreferenceOptionsWithEmpty = [
+    { value: "", label: "Select Shift Preference" },
+    ...shiftPreferenceOptions
+  ];
+
+  // Create notice period options with empty option
+  const noticePeriodOptionsWithEmpty = [
+    { value: "", label: "Select Notice Period" },
+    ...noticePeriodOptions
   ];
 
   // All fields in a single flat array - rearranged as requested
@@ -647,12 +663,14 @@ function CallInfo() {
     { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.qualifications },
     { label: "Course", key: "course", icon: <MdSchool />, type: "select", options: courseOptions, required: false, inputClass: "w-full" },
     { label: "Completion Status", key: "completionStatus", icon: <MdTask />, type: "select", options: [{ value: "Completed", label: "Completed" }, { value: "Pursuing", label: "Pursuing" }], required: false, inputClass: "w-full" },
+    { label: "Completion Year", key: "completionYear", icon: <MdSchool />, required: false, inputClass: "w-full" },
     { label: "Current Salary", key: "currentSalary", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
     { label: "Expected Salary", key: "salaryExpectations", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
     { label: "Current Department", key: "currentDepartment", icon: <MdBusinessCenter />, type: "select", options: currentDepartmentOptions, required: false, inputClass: "w-full" },
     { label: "Current Profile", key: "currentProfile", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: false, inputClass: "w-full" },
-    { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: false, inputClass: "w-full" },
+    { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptionsWithEmpty, required: false, inputClass: "w-full" },
+    { label: "Notice Period", key: "noticePeriod", icon: <MdAccessTime />, type: "select", options: noticePeriodOptionsWithEmpty, required: false, inputClass: "w-full" },
     { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: false, inputClass: "w-full" },
     { 
       label: "Walkin Date", 

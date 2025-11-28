@@ -98,15 +98,16 @@ const CandidatesCard = ({
     return "No summary";
   };
 
-  // Copy candidate data to clipboard
+  // Copy candidate name, phone number, and WhatsApp number to clipboard (Excel format - tab separated)
   const handleCopyCandidateData = (e, candidate) => {
     e.stopPropagation();
     
     const name = candidate?.name || '';
     const mobileNo = candidate?.mobileNo || '';
-    const whatsappNo = candidate?.whatsappNo || '';
+    const whatsappNo = candidate?.whatsappNo && candidate.whatsappNo !== "-" ? candidate.whatsappNo : '';
     
-    const dataToCopy = `name - ${name}\nmob no - ${mobileNo}\nwhatsapp no - ${whatsappNo}`;
+    // Tab-separated format for Excel (will paste into 3 columns)
+    const dataToCopy = `${name}\t${mobileNo}\t${whatsappNo}`;
     
     navigator.clipboard.writeText(dataToCopy).then(() => {
       notifySuccess("Copied to clipboard!");
@@ -177,8 +178,6 @@ const CandidatesCard = ({
       {candidates?.map((candidate, i) => {
         const isSelected = selectedCandidates.includes(candidate._id);
         const summary = getCallSummaryText(candidate?.callSummary);
-        const modifiedText = formatMonthsAgo(candidate?.updatedAt, "Modified");
-        const activeText = formatMonthsAgo(candidate?.createdAt || candidate?.updatedAt, "Active");
         
         return (
           <div
@@ -186,10 +185,8 @@ const CandidatesCard = ({
             className={`candidate-card-new ${isSelected ? 'selected' : ''}`}
           >
             <div className="candidate-card-content">
-              {/* Left Section - Main Details */}
-              <div className="candidate-left-section">
                 {/* Checkbox */}
-                <div className="checkbox-container">
+              <div className="checkbox-wrapper">
                 <input
                   type="checkbox"
                   checked={isSelected}
@@ -199,14 +196,63 @@ const CandidatesCard = ({
                 />
               </div>
 
-                {/* Name and Unlock Button */}
-                <div className="flex items-center gap-3 mb-3">
-                  <h3 
-                    className="candidate-name flex-1"
+              {/* Left Section - Main Details */}
+              <div className="candidate-left-section">
+                {/* Header: Name, Avatar, Unlock Button */}
+                <div className="candidate-header">
+                  <div className="header-left">
+                    <div className={`profile-avatar-compact ${getAvatarColor(candidate?.name)}`}>
+                      {getInitials(candidate?.name || '?')}
+                    </div>
+                    <div className="header-info">
+                      <div className="name-salary-wrapper">
+                        <h3 
+                          className="candidate-name"
                       onClick={() => onView(candidate)}
                     >
                       {searchTerm ? highlightText(candidate?.name || 'No Name', searchTerm) : (candidate?.name || 'No Name')}
                     </h3>
+                        {/* Salary - Next to Name in Light Grey */}
+                        {((candidate?.currentSalary && candidate.currentSalary !== "-") || candidate?.salaryExpectation) && (
+                          <span className="salary-text-inline">
+                            {candidate?.currentSalary && candidate.currentSalary !== "-" && (
+                              <span className="current-salary">
+                                {searchTerm ? highlightText(candidate.currentSalary, searchTerm) : candidate.currentSalary}
+                              </span>
+                            )}
+                            {candidate?.salaryExpectation && (
+                              <>
+                                {candidate?.currentSalary && candidate.currentSalary !== "-" && <span className="salary-separator">, </span>}
+                                <span className="expected-salary">
+                                  expected ({searchTerm ? highlightText(candidate.salaryExpectation, searchTerm) : candidate.salaryExpectation})
+                                </span>
+                              </>
+                            )}
+                          </span>
+                        )}
+                        {/* Summary - After Expected Salary in Available Space */}
+                        {summary && summary !== "No summary" && (
+                          <span className="summary-text-inline">
+                            {searchTerm ? highlightText(summary, searchTerm) : summary}
+                          </span>
+                        )}
+                      </div>
+                      <div className="candidate-basic-info">
+                        {candidate?.experience && (
+                          <span className="basic-info-badge">
+                            <MdWork className="basic-info-icon" />
+                            {searchTerm ? highlightText(candidate.experience, searchTerm) : candidate.experience}
+                          </span>
+                        )}
+                        {candidate?.city && (
+                          <span className="basic-info-badge">
+                            <MdLocationOn className="basic-info-icon" />
+                            {searchTerm ? highlightText(candidate.city, searchTerm) : candidate.city}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   {isAdmin && (candidate?.isLocked || candidate?.alreadyInHistory || candidate?.isLastRegisteredBy) && (
                     <button
                       onClick={(e) => {
@@ -217,172 +263,138 @@ const CandidatesCard = ({
                       title="Unlock Duplicacy"
                     >
                       <FaUnlock className="action-btn-icon" />
-                      Unlock Duplicacy
+                      Unlock
                       </button>
-                    )}
-                </div>
-
-                {/* Basic Info with Icons */}
-                <div className="candidate-basic-info">
-                  {candidate?.experience && (
-                    <div className="basic-info-item">
-                      <MdWork className="basic-info-icon" />
-                      <span className="basic-info-text">
-                        {searchTerm ? highlightText(candidate.experience, searchTerm) : candidate.experience}
-                      </span>
-                    </div>
-                  )}
-                  {candidate?.city && (
-                    <div className="basic-info-item">
-                      <MdLocationOn className="basic-info-icon" />
-                      <span className="basic-info-text">
-                        {searchTerm ? highlightText(candidate.city, searchTerm) : candidate.city}
-                      </span>
-                    </div>
                   )}
                 </div>
 
-                {/* Detailed Attributes - Label: Value format in Grid */}
-                <div className="candidate-details">
-                  {/* Current Status */}
+                {/* Status Badge */}
                   {candidate?.callStatus && (
-                    <div className="detail-item">
-                      <span className="detail-label">Current:</span>
-                      <span className={`detail-value highlight-status ${getStatusColor(candidate.callStatus)}`}>
+                  <div className="status-wrapper">
+                    <span className={`status-badge-compact ${getStatusColor(candidate.callStatus)}`}>
                         {searchTerm ? highlightText(candidate.callStatus, searchTerm) : candidate.callStatus}
-                        {candidate?.currentProfile && ` at ${candidate.currentProfile}`}
+                      {candidate?.currentProfile && ` • ${candidate.currentProfile}`}
                       </span>
                     </div>
                   )}
 
-                  {/* Preferred Location */}
-                  {candidate?.city && (
-                    <div className="detail-item">
-                      <span className="detail-label">Pref. location:</span>
-                      <span className="detail-value">
-                        {searchTerm ? highlightText(candidate.city, searchTerm) : candidate.city}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Key Skills */}
-                  {(candidate?.communication || candidate?.qualification) && (
-                    <div className="detail-item skills-item">
-                      <span className="detail-label">Key skills:</span>
-                      <span className="detail-value skills-list">
-                        {[
-                          candidate.communication,
-                          candidate.qualification,
-                          candidate.experience
-                        ].filter(Boolean).join(' | ')}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Languages */}
-                  {candidate?.language && (
-                    <div className="detail-item">
-                      <span className="detail-label">May also know:</span>
-                      <span className="detail-value">
-                        {searchTerm ? highlightText(candidate.language, searchTerm) : candidate.language}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Additional fields */}
-                  {candidate?.qualification && (
-                    <div className="detail-item">
-                      <span className="detail-label">Qualification:</span>
-                      <span className="detail-value">
-                        {searchTerm ? highlightText(candidate.qualification, searchTerm) : candidate.qualification}
-                      </span>
-                    </div>
-                  )}
-
+                {/* Important Details Grid */}
+                <div className="candidate-details-compact">
                   {candidate?.jobInterestedIn && (
-                    <div className="detail-item">
-                      <span className="detail-label">Job Interested:</span>
-                      <span className="detail-value">
+                    <div className="detail-compact">
+                      <span className="detail-label-compact">Job Interested:</span>
+                      <span className="detail-value-compact">
                         {searchTerm ? highlightText(candidate.jobInterestedIn, searchTerm) : candidate.jobInterestedIn}
                       </span>
                     </div>
                   )}
 
-                  {candidate?.currentSalary && (
-                    <div className="detail-item">
-                      <span className="detail-label">Current Salary:</span>
-                      <span className="detail-value">
-                        {searchTerm ? highlightText(candidate.currentSalary, searchTerm) : candidate.currentSalary}
+                  {/* Phone & WhatsApp - Combined with Icons */}
+                  {(candidate?.mobileNo || (candidate?.whatsappNo && candidate.whatsappNo !== "-")) && (
+                    <div className="detail-compact contact-detail">
+                      <span className="detail-label-compact">Contact:</span>
+                      <span className="detail-value-compact flex items-center gap-2 flex-wrap">
+                        {candidate?.mobileNo && (
+                          <span className="phone-number-wrapper flex items-center gap-1.5">
+                            <FaPhoneAlt className="phone-icon text-gray-600 dark:text-gray-400" />
+                            <span>{searchTerm ? highlightText(candidate.mobileNo, searchTerm) : candidate.mobileNo}</span>
+                          </span>
+                        )}
+                        {candidate?.mobileNo && candidate?.whatsappNo && candidate.whatsappNo !== "-" && (
+                          <span className="contact-separator text-gray-400 dark:text-gray-500">/</span>
+                        )}
+                        {candidate?.whatsappNo && candidate.whatsappNo !== "-" && (
+                          <span className="whatsapp-number-wrapper flex items-center gap-1.5">
+                            <FaWhatsapp className="whatsapp-icon text-green-600 dark:text-green-400" />
+                            <span>{searchTerm ? highlightText(candidate.whatsappNo, searchTerm) : candidate.whatsappNo}</span>
+                          </span>
+                        )}
                       </span>
                     </div>
                   )}
 
-                  {candidate?.salaryExpectation && (
-                    <div className="detail-item">
-                      <span className="detail-label">Expected Salary:</span>
-                      <span className="detail-value">
-                        {searchTerm ? highlightText(candidate.salaryExpectation, searchTerm) : candidate.salaryExpectation}
+
+                  {candidate?.noticePeriod && candidate.noticePeriod !== "-" && (
+                    <div className="detail-compact">
+                      <span className="detail-label-compact">Notice Period:</span>
+                      <span className="detail-value-compact">
+                        {searchTerm ? highlightText(candidate.noticePeriod, searchTerm) : candidate.noticePeriod}
                       </span>
                     </div>
                   )}
 
-                  {candidate?.mobileNo && (
-                    <div className="detail-item">
-                      <span className="detail-label">Phone:</span>
-                      <span className="detail-value flex items-center gap-2">
-                        <span>{searchTerm ? highlightText(candidate.mobileNo, searchTerm) : candidate.mobileNo}</span>
-                        <button
-                          onClick={(e) => handleCopyCandidateData(e, candidate)}
-                          className="copy-button"
-                          title="Copy candidate details"
-                        >
-                          <CopyOutlined className="copy-icon" />
-                        </button>
+                  {candidate?.qualification && (
+                    <div className="detail-compact">
+                      <span className="detail-label-compact">Qualification:</span>
+                      <span className="detail-value-compact">
+                        {searchTerm ? highlightText(candidate.qualification, searchTerm) : candidate.qualification}
                       </span>
                     </div>
                   )}
 
-                  {/* WhatsApp Number */}
-                  {candidate?.whatsappNo && (
-                    <div className="detail-item">
-                      <span className="detail-label">WhatsApp:</span>
-                      <span className="detail-value">
-                        {searchTerm ? highlightText(candidate.whatsappNo, searchTerm) : candidate.whatsappNo}
+                  {candidate?.completionYear && candidate.completionYear !== "-" && (
+                    <div className="detail-compact">
+                      <span className="detail-label-compact">Completion Year:</span>
+                      <span className="detail-value-compact">
+                        {searchTerm ? highlightText(candidate.completionYear, searchTerm) : candidate.completionYear}
                       </span>
                     </div>
                   )}
 
-                  {/* Last Registered By */}
+                  {candidate?.communication && (
+                    <div className="detail-compact">
+                      <span className="detail-label-compact">Communication:</span>
+                      <span className="detail-value-compact">
+                        {searchTerm ? highlightText(candidate.communication, searchTerm) : candidate.communication}
+                      </span>
+                    </div>
+                  )}
+
+                  {candidate?.course && candidate.course !== "-" && (
+                    <div className="detail-compact">
+                      <span className="detail-label-compact">Course:</span>
+                      <span className="detail-value-compact">
+                        {searchTerm ? highlightText(candidate.course, searchTerm) : candidate.course}
+                      </span>
+                    </div>
+                  )}
+
                   {candidate?.lastRegisteredByName && (
-                    <div className="detail-item">
-                      <span className="detail-label">Last Registered By:</span>
-                      <span className="detail-value">
+                    <div className="detail-compact">
+                      <span className="detail-label-compact">Registered By:</span>
+                      <span className="detail-value-compact">
                         {searchTerm ? highlightText(candidate.lastRegisteredByName, searchTerm) : candidate.lastRegisteredByName}
                       </span>
                     </div>
                   )}
-
-                  {/* Company Profile */}
-                  {(candidate?.companyProfile || candidate?.customCompanyProfile) && (
-                    <div className="detail-item">
-                      <span className="detail-label">Company Profile:</span>
-                      <span className="detail-value">
-                        {searchTerm ? highlightText(candidate.companyProfile || candidate.customCompanyProfile, searchTerm) : (candidate.companyProfile || candidate.customCompanyProfile)}
-                      </span>
                     </div>
-                  )}
-                  {(!candidate?.companyProfile && !candidate?.customCompanyProfile) && (
-                    <div className="detail-item">
-                      <span className="detail-label">Company Profile:</span>
-                      <span className="detail-value">-</span>
                     </div>
-                  )}
 
-                  {/* Time Spent */}
-                  <div className="detail-item">
-                    <span className="detail-label">Time Spent:</span>
-                    <span className="detail-value flex items-center gap-1 inline-flex">
-                    <span>{getTotalCallDuration(candidate?.employeeCallHistory)}</span>
+              {/* Right Section - Actions */}
+              <div className="candidate-right-section">
+                <div className="action-buttons-wrapper">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onView(candidate);
+                    }}
+                    className="action-btn-primary-compact"
+                  >
+                    View Details
+                  </button>
+                  <button
+                    onClick={(e) => handleCopyCandidateData(e, candidate)}
+                    className="action-btn-copy-compact"
+                    title="Copy candidate phone number name"
+                  >
+                    <CopyOutlined className="action-btn-icon" />
+                    Copy
+                  </button>
+                </div>
+                <div className="time-spent-wrapper">
+                  <span className="time-spent-text">
+                    {getTotalCallDuration(candidate?.employeeCallHistory)}
+                  </span>
                     {candidate?.employeeCallHistory && candidate.employeeCallHistory.length > 0 && (
                         <div className="group relative inline-block">
                         <MdInfo 
@@ -395,77 +407,7 @@ const CandidatesCard = ({
                         </div>
                       </div>
                     )}
-                    </span>
-                  </div>
                     </div>
-                    </div>
-
-              {/* Right Section - Profile & Actions */}
-              <div className="candidate-right-section">
-                {/* Profile Avatar */}
-                <div className={`profile-avatar-large ${getAvatarColor(candidate?.name)}`}>
-                  {getInitials(candidate?.name || '?')}
-                    </div>
-
-                {/* Summary Text */}
-                <div className="candidate-summary">
-                  {searchTerm ? highlightText(summary, searchTerm) : summary}
-                    </div>
-
-                {/* Action Buttons */}
-                <div className="candidate-actions">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onView(candidate);
-                    }}
-                    className="action-btn-primary"
-                  >
-                    View candidate's details
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (candidate?.mobileNo) {
-                        window.location.href = `tel:${candidate.mobileNo}`;
-                      }
-                    }}
-                    className="action-btn-secondary"
-                  >
-                    <FaPhoneAlt className="action-btn-icon" />
-                    Call candidate
-                  </button>
-                    </div>
-
-                {/* Save Status */}
-                <div className="candidate-links">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Add save functionality
-                    }}
-                    className="link-button"
-                  >
-                    <FaBookmark className="link-icon" />
-                    {candidate?.dataSaved === "Saved" ? "Saved" : "Not Saved"}
-                  </button>
-                    </div>
-                  </div>
-
-                  </div>
-
-            {/* Footer Bar */}
-            <div className="candidate-footer">
-      
-              <div className="footer-item">
-                <span className="footer-text">
-                  {modifiedText || 'Not modified'}
-                      </span>
-                    </div>
-              <div className="footer-item">
-                <span className="footer-text">
-                  {activeText || 'Not active'}
-                </span>
               </div>
             </div>
           </div>

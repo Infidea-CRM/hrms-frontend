@@ -25,7 +25,8 @@ const SearchableDropdown = forwardRef(({
   const [selectedLabel, setSelectedLabel] = useState("");
   // Track if the focus is from tabbing - use ref for immediate access
   const isTabbingRef = useRef(false);
-  const [isTabbing, setIsTabbing] = useState(false);
+  // Track if option was just selected (to allow Tab to move to next field)
+  const justSelectedRef = useRef(false);
 
   // Combine refs: external ref and internal inputRef
   useEffect(() => {
@@ -118,15 +119,69 @@ const SearchableDropdown = forwardRef(({
       return;
     }
     
-    // Set tabbing flag when Tab key is pressed
+    // Handle Tab key
     if (e.key === "Tab") {
+      // If option was just selected, allow Tab to move to next field
+      if (justSelectedRef.current) {
+        justSelectedRef.current = false;
+        setIsOpen(false);
+        // Let Tab work normally to move to next field
+        return; // Don't prevent default, let browser handle tab navigation
+      }
+      
+      // If dropdown is open, navigate through options
+      if (isOpen) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Shift+Tab: move to previous option or close dropdown
+          if (highlightedIndex > 0) {
+            setHighlightedIndex(prev => prev - 1);
+            // Scroll to highlighted option
+            if (listboxRef.current && listboxRef.current.children[highlightedIndex - 1]) {
+              listboxRef.current.children[highlightedIndex - 1].scrollIntoView({
+                block: 'nearest'
+              });
+            }
+          } else {
+            // At first option, close dropdown and move to previous field
+            setIsOpen(false);
+            if (selectedOption) {
+              setSearchTerm(selectedOption.label);
+            }
+            // Let browser handle Shift+Tab to previous field
+          }
+        } else {
+          // Tab: move to next option
+          if (highlightedIndex < filteredOptions.length - 1) {
+            setHighlightedIndex(prev => prev + 1);
+            // Scroll to highlighted option
+            if (listboxRef.current && listboxRef.current.children[highlightedIndex + 1]) {
+              listboxRef.current.children[highlightedIndex + 1].scrollIntoView({
+                block: 'nearest'
+              });
+            }
+          } else {
+            // At last option, wrap to first option
+            setHighlightedIndex(0);
+            if (listboxRef.current && listboxRef.current.children[0]) {
+              listboxRef.current.children[0].scrollIntoView({
+                block: 'nearest'
+              });
+            }
+          }
+        }
+        return;
+      }
+      
+      // If dropdown is closed, set tabbing flag for handleFocus
       isTabbingRef.current = true;
-      setIsTabbing(true);
       // Reset after a short delay to allow handleFocus to check it
       setTimeout(() => {
         isTabbingRef.current = false;
-        setIsTabbing(false);
       }, 200);
+      
+      // Let Tab work normally to move to next field
+      return;
     }
     
     if (e.key === "ArrowDown") {
@@ -148,12 +203,18 @@ const SearchableDropdown = forwardRef(({
       }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightedIndex(prev => (prev > 0 ? prev - 1 : prev));
-      // Scroll to highlighted option
-      if (listboxRef.current && listboxRef.current.children[highlightedIndex - 1]) {
-        listboxRef.current.children[highlightedIndex - 1].scrollIntoView({
-          block: 'nearest'
-        });
+      if (!isOpen) {
+        setIsOpen(true);
+        setSearchTerm("");
+        setHighlightedIndex(filteredOptions.length - 1);
+      } else {
+        setHighlightedIndex(prev => (prev > 0 ? prev - 1 : prev));
+        // Scroll to highlighted option
+        if (listboxRef.current && listboxRef.current.children[highlightedIndex - 1]) {
+          listboxRef.current.children[highlightedIndex - 1].scrollIntoView({
+            block: 'nearest'
+          });
+        }
       }
     } else if (e.key === "Enter" && isOpen) {
       e.preventDefault();
@@ -166,19 +227,6 @@ const SearchableDropdown = forwardRef(({
       if (selectedOption) {
         setSearchTerm(selectedOption.label);
       }
-    } else if (e.key === "Tab") {
-      // Close dropdown if open, but don't select anything
-      if (isOpen) {
-        setIsOpen(false);
-        // Restore the search term to the selected value if any
-        if (selectedOption) {
-          setSearchTerm(selectedOption.label);
-        } else {
-          setSearchTerm("");
-        }
-      }
-      // Always let Tab key work normally - don't prevent default
-      // This allows normal tab navigation without auto-selecting options
     }
   };
 
@@ -242,9 +290,13 @@ const SearchableDropdown = forwardRef(({
     setSearchTerm(option.label);
     setSelectedLabel(option.label);
     setIsOpen(false);
+    // Mark that option was just selected, so next Tab will move to next field
+    justSelectedRef.current = true;
     
-    // Just close the dropdown without explicit focus management
-    setTimeout(focusNextField, 10);
+    // Reset the flag after a short delay
+    setTimeout(() => {
+      justSelectedRef.current = false;
+    }, 100);
   };
 
   // Handle click to open dropdown and clear search term
@@ -258,22 +310,31 @@ const SearchableDropdown = forwardRef(({
 
   // Handle focus to open dropdown and clear search term
   const handleFocus = (e) => {
-    // Don't open dropdown if we're shift-tabbing or tabbing into this field
-    // Only open on mouse click or explicit user interaction
-    if (!isShiftTabbing && !isTabbingRef.current && !globalTabPressed) {
-      setIsOpen(true);
-      setSearchTerm("");
-      
-      if (inputRef.current) {
-        inputRef.current.select();
-      }
-    } else {
-      // When tabbing into field, keep dropdown closed and maintain current value
+    // If shift-tabbing, don't open dropdown
+    if (isShiftTabbing) {
       if (selectedOption) {
         setSearchTerm(selectedOption.label);
       } else {
         setSearchTerm("");
       }
+      return;
+    }
+    
+    // When tabbing into field, open dropdown automatically
+    if (isTabbingRef.current || globalTabPressed) {
+      setIsOpen(true);
+      setSearchTerm("");
+      setHighlightedIndex(0); // Start at first option
+      // Don't select text when tabbing in
+      return;
+    }
+    
+    // For mouse clicks or other interactions, open dropdown
+    setIsOpen(true);
+    setSearchTerm("");
+    
+    if (inputRef.current) {
+      inputRef.current.select();
     }
   };
 

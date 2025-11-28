@@ -35,7 +35,8 @@ import {
   communicationOptions,
   shiftPreferenceOptions,
   courseOptions,
-  currentDepartmentOptions
+  currentDepartmentOptions,
+  noticePeriodOptions
 } from "@/utils/optionsData";
 import ProcessSelector from "@/components/common/ProcessSelector";
 import SearchableDropdown from "@/components/common/SearchableDropdown";
@@ -79,6 +80,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     course: "",
     customCourse: "",
     completionStatus: "",
+    completionYear: "",
     currentSalary: "",
     salaryExpectations: "",
     currentDepartment: "",
@@ -86,6 +88,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     currentProfile: "",
     levelOfCommunication: "",
     shiftPreference: "",
+    noticePeriod: "",
     callStatus: "",
     callSummary: "",
     callDuration: "",
@@ -138,6 +141,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         course: candidateData.course || "",
         customCourse: candidateData.customCourse || "",
         completionStatus: candidateData.completionStatus || "",
+        completionYear: candidateData.completionYear || "",
         currentSalary: candidateData.currentSalary || "",
         salaryExpectations: candidateData.salaryExpectation || "",
         currentDepartment: candidateData.currentDepartment || "",
@@ -145,6 +149,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         currentProfile: candidateData.currentProfile || "",
         levelOfCommunication: candidateData.communication || "",
         shiftPreference: candidateData.shift || "",
+        noticePeriod: candidateData.noticePeriod || "",
         callStatus: candidateData.callStatus || "",
         callDuration: "", // Keep empty for new duration
         callSummary: "", // Keep empty for new summary
@@ -454,6 +459,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         course: formData.course === "Other" ? formData.customCourse : formData.course,
         customCourse: formData.customCourse || "",
         completionStatus: formData.completionStatus || "",
+        completionYear: formData.completionYear || "",
         currentSalary: formData.currentSalary || "",
         salaryExpectation: formData.salaryExpectations,
         currentDepartment: formData.currentDepartment === "Other" ? formData.customCurrentDepartment : formData.currentDepartment,
@@ -461,6 +467,7 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
         currentProfile: formData.currentProfile || "",
         communication: formData.levelOfCommunication,
         shift: formData.shiftPreference,
+        noticePeriod: formData.noticePeriod || "",
         callStatus: formData.callStatus,
         callDuration: callDurationToSend,
         callSummary: formData.callSummary || "",
@@ -569,6 +576,12 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     { value: "Not Saved", label: "Not Saved" }
   ];
 
+  // Create notice period options with empty option
+  const noticePeriodOptionsWithEmpty = [
+    { value: "", label: "Select Notice Period" },
+    ...noticePeriodOptions
+  ];
+
   // All fields in a single flat array - organized as in CallInfo
   const fields = [
     { label: "Candidate's Name", key: "candidateName", icon: <MdPerson />, required: false, inputClass: "w-full" },
@@ -602,12 +615,14 @@ function CallDetailsEditModal({ isOpen, onClose, candidateData, onUpdate, isLock
     { label: "Qualification", key: "qualification", icon: <MdSchool />, type: "select", options: qualificationOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.qualifications },
     { label: "Course", key: "course", icon: <MdSchool />, type: "select", options: courseOptions, required: false, inputClass: "w-full" },
     { label: "Completion Status", key: "completionStatus", icon: <MdTask />, type: "select", options: completionStatusOptions, required: false, inputClass: "w-full" },
+    { label: "Completion Year", key: "completionYear", icon: <MdSchool />, required: false, inputClass: "w-full" },
     { label: "Current Salary", key: "currentSalary", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
     { label: "Expected Salary", key: "salaryExpectations", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
     { label: "Current Department", key: "currentDepartment", icon: <MdBusinessCenter />, type: "select", options: currentDepartmentOptions, required: false, inputClass: "w-full" },
     { label: "Current Profile", key: "currentProfile", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: false, inputClass: "w-full" },
     { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptions, required: false, inputClass: "w-full" },
+    { label: "Notice Period", key: "noticePeriod", icon: <MdAccessTime />, type: "select", options: noticePeriodOptionsWithEmpty, required: false, inputClass: "w-full" },
     { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: false, inputClass: "w-full" },
     { 
       label: "Walkin Date", 

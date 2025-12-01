@@ -192,9 +192,36 @@ const EmployeeServices = {
     return requests.post("/candidates/create", body);
   },
 
-  getCandidatesData: async (page = 1, limit = 10, search = "") => {
-    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
-    return requests.get(`/candidates?page=${page}&limit=${limit}${searchParam}`);
+  getCandidatesData: async (page = 1, limit = 10, search = "", filters = {}, dateRange = {}) => {
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('limit', limit);
+    
+    if (search) {
+      params.append('search', search);
+    }
+    
+    // Add filters
+    Object.keys(filters).forEach(key => {
+      if (filters[key] && Array.isArray(filters[key]) && filters[key].length > 0) {
+        filters[key].forEach(value => {
+          params.append(`filters[${key}]`, value);
+        });
+      }
+    });
+    
+    // Add date range
+    if (dateRange.startDate) {
+      params.append('startDate', dateRange.startDate instanceof Date ? dateRange.startDate.toISOString() : dateRange.startDate);
+    }
+    if (dateRange.endDate) {
+      params.append('endDate', dateRange.endDate instanceof Date ? dateRange.endDate.toISOString() : dateRange.endDate);
+    }
+    if (dateRange.dateRangeType) {
+      params.append('dateRangeType', dateRange.dateRangeType);
+    }
+    
+    return requests.get(`/candidates?${params.toString()}`);
   },
 
   updateCandidateData: async (candidateId, body) => {
@@ -384,6 +411,10 @@ const EmployeeServices = {
 
   getCandidateName: async (mobileNo) => {
     return requests.get(`/candidates/get-by-mobile/${mobileNo}`);
+  },
+
+  bulkMarkDataSaved: async (candidateIds) => {
+    return requests.post("/candidates/bulk-mark-data-saved", { candidateIds });
   },
 };
 export default EmployeeServices;

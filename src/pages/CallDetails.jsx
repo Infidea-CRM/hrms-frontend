@@ -9,6 +9,7 @@ import {
   Button,
 } from "@windmill/react-ui";
 import React, { useState, useContext, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import NotFound from "@/components/table/NotFound";
 import useFilter from "@/hooks/useFilter";
@@ -18,7 +19,7 @@ import { SidebarContext } from "@/context/SidebarContext";
 import { AdminContext } from "@/context/AdminContext";
 import DatePicker from "react-datepicker";  
 import 'react-datepicker/dist/react-datepicker.css';
-import { FaSearch, FaPlus, FaTimesCircle, FaChevronLeft, FaChevronRight, FaUserCheck, FaUpload, FaFileExcel, FaFilter, FaCheck, FaCopy, FaUnlock } from "react-icons/fa";
+import { FaSearch, FaPlus, FaTimesCircle, FaChevronLeft, FaChevronRight, FaUserCheck, FaUpload, FaFileExcel, FaFilter, FaCheck, FaCopy, FaUnlock, FaBookmark } from "react-icons/fa";
 import { MdError, MdClose, MdExpandMore, MdExpandLess } from "react-icons/md";
 import CandidatesCard from "@/components/candidates/CandidatesCard";
 import CandidatesCardSkeleton from "@/components/candidates/CandidatesCardSkeleton";
@@ -53,6 +54,7 @@ const CallDetails = () => {
     shift: [],
     qualification: [],
     locality: [],
+    dataSaved: [],
   });
   const [mobileNumber, setMobileNumber] = useState("");
   const [mobileError, setMobileError] = useState("");
@@ -76,6 +78,7 @@ const CallDetails = () => {
   // Add these new states for the filter dropdowns
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [activeFilterColumn, setActiveFilterColumn] = useState(null);
+  const [filterSearchTerm, setFilterSearchTerm] = useState("");
   const { state } = useContext(AdminContext);
   const { adminInfo } = state;
   const isAdmin = adminInfo?.isAdmin || false;
@@ -90,12 +93,44 @@ const CallDetails = () => {
   // Add searchTerm state to store the current search input (must be before useEffect that uses it)
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch candidates data with pagination and search
+  // Initialize dateRange state separately (before useFilter hook)
+  const [dateRange, setDateRange] = useState({
+    startDate: null,
+    endDate: null,
+  });
+  const [dateRangeType, setDateRangeType] = useState("day");
+
+  // Map API response to match expected format (needed for useFilter)
+  const data = apiData ? { candidates: apiData.candidates || [] } : null;
+
+  const {
+    candidateRef,  
+    handleSubmitCandidate,
+    dataTable,
+    serviceData,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+    handleSortChange,
+  } = useFilter(data?.candidates);
+
+  // Add states for API data
+  const [qualifications, setQualifications] = useState([]);
+  const [localities, setLocalities] = useState([]);
+
+  // Fetch candidates data with pagination, search, and filters
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
         setLoading(true);
-        const response = await EmployeeServices.getCandidatesData(currentPage, itemsPerPage, searchTerm);
+        const response = await EmployeeServices.getCandidatesData(
+          currentPage, 
+          itemsPerPage, 
+          searchTerm,
+          filters,
+          { startDate: dateRange.startDate, endDate: dateRange.endDate, dateRangeType }
+        );
         setApiData(response);
         setTotalCandidates(response?.totalCandidates || 0);
         setTotalPages(response?.totalPages || 0);
@@ -109,17 +144,7 @@ const CallDetails = () => {
     };
 
     fetchCandidates();
-  }, [currentPage, itemsPerPage, refreshKey, searchTerm]);
-
-  // Map API response to match expected format
-  const data = apiData ? { candidates: apiData.candidates || [] } : null;
-
-
-  // Add states for API data
-  const [qualifications, setQualifications] = useState([]);
-  const [localities, setLocalities] = useState([]);
-
-  // Refresh is handled by the fetchCandidates useEffect via refreshKey dependency
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters, dateRange.startDate, dateRange.endDate, dateRangeType]);
 
   // Add useEffect to fetch qualifications and localities
   useEffect(() => {
@@ -145,22 +170,21 @@ const CallDetails = () => {
     fetchFilterData();
   }, []);
 
-  const {
-    candidateRef,  
-    handleSubmitCandidate,
-    dataTable,
-    serviceData,
-    sortBy,
-    setSortBy,
-    sortOrder,
-    setSortOrder,
-    dateRange,
-    handleDateRangeChange,
-    dateRangeType,
-    handleDateRangeTypeChange,
-    handleSortChange,
-    setDateRange,
-  } = useFilter(data?.candidates);
+  // Date range handlers
+  const handleDateRangeChange = (startDate, endDate) => {
+    setDateRange({
+      startDate,
+      endDate,
+    });
+    // Reset to page 1 when date range changes
+    setCurrentPage(1);
+  };
+
+  const handleDateRangeTypeChange = (type) => {
+    setDateRangeType(type);
+    // Reset to page 1 when date range type changes
+    setCurrentPage(1);
+  };
 
   const navigate = useNavigate();
 
@@ -169,6 +193,7 @@ const CallDetails = () => {
   // Add selected candidates state
   const [selectedCandidates, setSelectedCandidates] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [markingDataSaved, setMarkingDataSaved] = useState(false);
 
   // Add useEffect for Escape key handling
   useEffect(() => {
@@ -216,7 +241,9 @@ const CallDetails = () => {
       shift: [],
       qualification: [],
       locality: [],
+      dataSaved: [],
     });
+    setFilterSearchTerm(""); // Clear filter search term
     setItemsPerPage(DEFAULT_ITEMS_PER_PAGE);
     setCurrentPage(1);
     setMobileNumber("");
@@ -469,6 +496,9 @@ const CallDetails = () => {
         updatedFilters[columnName] = [...updatedFilters[columnName], value];
       }
       
+      // Reset to page 1 when filters change
+      setCurrentPage(1);
+      
       return updatedFilters;
     });
   };
@@ -526,41 +556,12 @@ const CallDetails = () => {
     return pages;
   };
 
-  // Update the applyFilters function to handle non-array values
-  const applyFilters = (data) => {
-    if (!data) return [];
-    
-    
-    return data.filter(item => {
-      // Check each filter
-      for (const [key, values] of Object.entries(filters)) {
-        // Skip empty filters or non-array values
-        if (!values || values.length === 0) continue;
-        
-        // Ensure values is an array
-        if (!Array.isArray(values)) {
-          continue;
-        }
-        
-        const itemValue = item[key] || '';
-        const matches = values.some(value => {
-          const normalizedItemValue = String(itemValue).trim().toLowerCase();
-          const normalizedFilterValue = String(value).toLowerCase();
-          return normalizedItemValue === normalizedFilterValue;
-        });
-        
-        if (!matches) return false;
-      }
-      
-      return true;
-    });
-  };
+  // No need for client-side filtering anymore - backend handles it
+  // Use data directly from API response
+  const filteredData = dataTable || [];
   
-  // Use the new filter function
-  const filteredData = applyFilters(dataTable || []);
-  
-  // Use backend pagination totalPages, but fallback to client-side calculation for filtered data
-  const displayTotalPages = totalPages || Math.ceil(filteredData.length / itemsPerPage);
+  // Use backend pagination totalPages
+  const displayTotalPages = totalPages || 1;
 
   // Toggle sort order when header is clicked
   const handleSortByField = (field) => {
@@ -824,6 +825,12 @@ const CallDetails = () => {
     label: locality.name || locality
   }));
 
+  // Data Saved options
+  const dataSavedOptions = [
+    { value: "Saved", label: "Yes" },
+    { value: "Not Saved", label: "No" }
+  ];
+
   // Filter column options
   const filterColumns = [
     {
@@ -860,8 +867,22 @@ const CallDetails = () => {
       name: "locality",
       label: "Locality",
       options: localityOptions
+    },
+    {
+      name: "dataSaved",
+      label: "Data Saved",
+      options: dataSavedOptions
     }
   ];
+
+  // Filter filter columns based on search term (search filter categories, not options)
+  const getFilteredColumns = () => {
+    if (!filterSearchTerm.trim()) return filterColumns;
+    const searchLower = filterSearchTerm.toLowerCase();
+    return filterColumns.filter(column => 
+      column.label.toLowerCase().includes(searchLower)
+    );
+  };
 
   // Toggle filter dropdown
   const toggleFilterDropdown = () => {
@@ -879,6 +900,8 @@ const CallDetails = () => {
       ...prev,
       [filterName]: []
     }));
+    // Reset to page 1 when clearing filters
+    setCurrentPage(1);
   };
 
   // Count total active filters
@@ -888,11 +911,40 @@ const CallDetails = () => {
   );
 
   const dropdownRef = useRef(null);
+  const filterButtonRef = useRef(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+
+  // Calculate dropdown position when it opens
+  useEffect(() => {
+    const updatePosition = () => {
+      if (showFilterDropdown && filterButtonRef.current) {
+        const rect = filterButtonRef.current.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: rect.width
+        });
+      }
+    };
+
+    if (showFilterDropdown) {
+      updatePosition();
+      // Update position on scroll and resize
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [showFilterDropdown]);
 
   // Add click outside handler to close dropdown
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target) &&
+          filterButtonRef.current && !filterButtonRef.current.contains(event.target)) {
         setShowFilterDropdown(false);
       }
     }
@@ -900,11 +952,14 @@ const CallDetails = () => {
     // Add event listener when dropdown is open
     if (showFilterDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
+      // Also close on scroll
+      window.addEventListener("scroll", handleClickOutside, true);
     }
     
     // Clean up the event listener
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleClickOutside, true);
     };
   }, [showFilterDropdown]);
 
@@ -929,30 +984,63 @@ const CallDetails = () => {
     // Note: The useEffect will automatically trigger fetch when searchTerm changes
   };
 
-  // Add function to handle copying selected mobile numbers
+  // Handle bulk mark data saved
+  const handleBulkMarkDataSaved = async () => {
+    if (selectedCandidates.length === 0) {
+      toast.error("No candidates selected");
+      return;
+    }
+
+    setMarkingDataSaved(true);
+    try {
+      const response = await EmployeeServices.bulkMarkDataSaved(selectedCandidates);
+      toast.success(response.message || `Successfully marked ${selectedCandidates.length} candidate(s) as data saved`);
+      
+      // Clear selection after successful update
+      setSelectedCandidates([]);
+      setSelectAll(false);
+      
+      // Refresh the table data
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error('Error marking data saved:', error);
+      toast.error(error.response?.data?.message || "Failed to mark data saved");
+    } finally {
+      setMarkingDataSaved(false);
+    }
+  };
+
+  // Add function to handle copying selected candidate data (same format as card copy button)
   const handleCopySelectedNumbers = () => {
     if (selectedCandidates.length === 0) {
       toast.error("No candidates selected");
       return;
     }
 
-    // Get only mobile numbers from selected candidates
-    const selectedNumbers = selectedCandidates
+    // Get candidate data in the same format as card copy button (tab-separated: name, mobileNo, whatsappNo)
+    const candidatesData = selectedCandidates
       .map(candidateId => {
         const candidate = filteredData.find(c => c._id === candidateId);
-        return candidate?.mobileNo;
+        if (!candidate) return null;
+        
+        const name = candidate?.name || '';
+        const mobileNo = candidate?.mobileNo || '';
+        const whatsappNo = candidate?.whatsappNo && candidate.whatsappNo !== "-" ? candidate.whatsappNo : '';
+        
+        // Tab-separated format for Excel (will paste into 3 columns)
+        return `${name}\t${mobileNo}\t${whatsappNo}`;
       })
-      .filter(Boolean) // Remove any undefined/null values
-      .join('\n'); // Join with newline, not comma
+      .filter(Boolean) // Remove any null values
+      .join('\n'); // Join with newline - each candidate on a new line
 
     // Copy to clipboard
-    navigator.clipboard.writeText(selectedNumbers)
+    navigator.clipboard.writeText(candidatesData)
       .then(() => {
-        toast.success(`${selectedCandidates.length} numbers copied to clipboard`);
+        toast.success(`${selectedCandidates.length} candidate${selectedCandidates.length !== 1 ? 's' : ''} copied to clipboard!`);
       })
       .catch(err => {
-        console.error('Failed to copy numbers:', err);
-        toast.error("Failed to copy numbers");
+        console.error('Failed to copy candidate data:', err);
+        toast.error("Failed to copy candidate data");
       });
   };
 
@@ -974,7 +1062,13 @@ const CallDetails = () => {
   // Handle individual candidate selection
   const handleCandidateSelection = (candidateId, isSelected) => {
     if (isSelected) {
-      setSelectedCandidates(prev => [...prev, candidateId]);
+      setSelectedCandidates(prev => {
+        // Prevent duplicates
+        if (prev.includes(candidateId)) {
+          return prev;
+        }
+        return [...prev, candidateId];
+      });
     } else {
       setSelectedCandidates(prev => prev.filter(id => id !== candidateId));
     }
@@ -1132,8 +1226,9 @@ const CallDetails = () => {
               </div>
               
               {/* Enhanced filter dropdown with all columns and ref for click outside */}
-              <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[150px] relative" ref={dropdownRef}>
+              <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[150px] relative">
                 <button
+                  ref={filterButtonRef}
                   onClick={toggleFilterDropdown}
                   className="flex items-center justify-between w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 hover:bg-gray-50 dark:hover:bg-gray-600"
                 >
@@ -1148,23 +1243,47 @@ const CallDetails = () => {
                   </span>
                   {showFilterDropdown ? <MdExpandLess className="text-gray-600 dark:text-gray-300" /> : <MdExpandMore className="text-gray-600 dark:text-gray-300" />}
                 </button>
-                
-                {/* Enhanced dropdown for all filters */}
-                {showFilterDropdown && (
-                  <div className="absolute left-0 mt-1 w-72 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-40">
-                    <div className="p-2">
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
-                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Filter by</span>
-                        <button 
-                          onClick={handleResetField}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          Reset all
-                        </button>
-                      </div>
-                      
-                      <div className="max-h-96 overflow-y-auto mt-1">
-                        {filterColumns.map(column => (
+              </div>
+              
+              {/* Enhanced dropdown for all filters - Using Portal */}
+              {showFilterDropdown && createPortal(
+                <div 
+                  ref={dropdownRef}
+                  className="fixed bg-white dark:bg-gray-800 rounded-md shadow-xl border border-gray-200 dark:border-gray-700"
+                  style={{
+                    top: `${dropdownPosition.top}px`,
+                    left: `${dropdownPosition.left}px`,
+                    width: '288px',
+                    zIndex: 9999,
+                    maxHeight: '80vh',
+                  }}
+                >
+                  <div className="p-2">
+                    <div className="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Filter by</span>
+                      <button 
+                        onClick={handleResetField}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Reset all
+                      </button>
+                    </div>
+                    
+                    {/* Search bar for filter categories */}
+                    <div className="mb-2 mt-2">
+                      <input
+                        type="text"
+                        placeholder="Search filters..."
+                        value={filterSearchTerm}
+                        onChange={(e) => setFilterSearchTerm(e.target.value)}
+                        className="w-full px-2 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    
+                    <div className="max-h-96 overflow-y-auto mt-1">
+                      {getFilteredColumns().length > 0 ? (
+                        getFilteredColumns().map(column => (
                           <div key={column.name} className="mb-2 border-b border-gray-100 dark:border-gray-700 pb-2 last:border-0">
                             <div className="flex items-center justify-between">
                               <button
@@ -1215,12 +1334,17 @@ const CallDetails = () => {
                               </div>
                             )}
                           </div>
-                        ))}
-                      </div>
+                        ))
+                      ) : (
+                        <div className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                          No filters found
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
+                </div>,
+                document.body
+              )}
               
               <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[120px]">
                 <select 
@@ -1347,19 +1471,44 @@ const CallDetails = () => {
                 </select>
               </div>
               
-              {/* Copy Numbers Button */}
+              {/* Copy Selected Candidates Button */}
               {selectedCandidates.length > 0 && (
-                <div className="w-full sm:w-auto md:w-auto sm:flex-none">
-                  <button
-                    onClick={handleCopySelectedNumbers}
-                    className="flex items-center justify-center w-full px-3 py-1.5 rounded-md text-xs bg-teal-600 hover:bg-teal-700 text-white"
-                  >
-                    <FaCopy className="mr-1.5" />
-                    Copy {selectedCandidates.length} number{selectedCandidates.length !== 1 ? 's' : ''}
-                  </button>
-                </div>
+                <>
+                  <div className="w-full sm:w-auto md:w-auto sm:flex-none">
+                    <button
+                      onClick={handleCopySelectedNumbers}
+                      className="flex items-center justify-center w-full px-3 py-1.5 rounded-md text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                    >
+                      <FaCopy className="mr-1.5" />
+                      Copy {selectedCandidates.length} candidate{selectedCandidates.length !== 1 ? 's' : ''}
+                    </button>
+                  </div>
+                  
+                  {/* Mark Data Saved Button */}
+                  <div className="w-full sm:w-auto md:w-auto sm:flex-none">
+                    <button
+                      onClick={handleBulkMarkDataSaved}
+                      disabled={markingDataSaved}
+                      className="flex items-center justify-center w-full px-3 py-1.5 rounded-md text-xs bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {markingDataSaved ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Marking...
+                        </>
+                      ) : (
+                        <>
+                          <FaBookmark className="mr-1.5" />
+                          Mark Data Saved ({selectedCandidates.length})
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
               )}
-              
             </div>
           </div>
         </div>

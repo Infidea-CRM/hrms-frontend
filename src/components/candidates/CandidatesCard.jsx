@@ -167,11 +167,6 @@ const CandidatesCard = ({
   };
 
 
-  const handleCheckboxClick = (e, candidate) => {
-    e.stopPropagation();
-    const isSelected = selectedCandidates.includes(candidate._id);
-    onCandidateSelection(candidate._id, !isSelected);
-  };
 
   return (
     <div className="flex flex-col gap-3 mb-6">
@@ -190,9 +185,13 @@ const CandidatesCard = ({
                 <input
                   type="checkbox"
                   checked={isSelected}
-                  onChange={() => handleCheckboxClick({ stopPropagation: () => {} }, candidate)}
-                  onClick={(e) => handleCheckboxClick(e, candidate)}
-                    className="candidate-checkbox"
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const isCurrentlySelected = selectedCandidates.includes(candidate._id);
+                    onCandidateSelection(candidate._id, !isCurrentlySelected);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="candidate-checkbox"
                 />
               </div>
 

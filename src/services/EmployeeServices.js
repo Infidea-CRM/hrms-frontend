@@ -192,13 +192,18 @@ const EmployeeServices = {
     return requests.post("/candidates/create", body);
   },
 
-  getCandidatesData: async (page = 1, limit = 10, search = "", filters = {}, dateRange = {}) => {
+  getCandidatesData: async (page = 1, limit = 10, search = "", filters = {}, dateRange = {}, employeeId = null) => {
     const params = new URLSearchParams();
     params.append('page', page);
     params.append('limit', limit);
     
     if (search) {
       params.append('search', search);
+    }
+    
+    // Add employeeId filter (for admin)
+    if (employeeId) {
+      params.append('employeeId', employeeId);
     }
     
     // Add filters
@@ -224,6 +229,10 @@ const EmployeeServices = {
     return requests.get(`/candidates?${params.toString()}`);
   },
 
+  getAllEmployees: async () => {
+    return requests.get("/Employee/all-employees");
+  },
+
   updateCandidateData: async (candidateId, body) => {
     return requests.patch(`/candidates/${candidateId}`, body);
   },
@@ -247,6 +256,10 @@ const EmployeeServices = {
 
   unlockCandidateDuplicacy: async (mobileNo) => {
     return requests.post(`/candidates/unlock-duplicacy/${mobileNo}`);
+  },
+
+  bulkUnlockCandidates: async (candidateIds) => {
+    return requests.post("/candidates/bulk-unlock", { candidateIds });
   },
 
   bulkUploadCandidates: async (body) => {

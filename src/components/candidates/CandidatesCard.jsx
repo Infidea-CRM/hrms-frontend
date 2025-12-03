@@ -169,7 +169,7 @@ const CandidatesCard = ({
 
 
   return (
-    <div className="flex flex-col gap-3 mb-6">
+    <div className="flex flex-col gap-3 mb-6 w-full max-w-full overflow-x-hidden">
       {candidates?.map((candidate, i) => {
         const isSelected = selectedCandidates.includes(candidate._id);
         const summary = getCallSummaryText(candidate?.callSummary);

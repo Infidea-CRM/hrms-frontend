@@ -118,6 +118,16 @@ const CallDetails = () => {
   // Add states for API data
   const [qualifications, setQualifications] = useState([]);
   const [localities, setLocalities] = useState([]);
+  
+  // Employee filter state (for admin only)
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+  
+  // Date picker modal states
+  const [showStartDateModal, setShowStartDateModal] = useState(false);
+  const [showEndDateModal, setShowEndDateModal] = useState(false);
 
   // Fetch candidates data with pagination, search, and filters
   useEffect(() => {
@@ -129,7 +139,8 @@ const CallDetails = () => {
           itemsPerPage, 
           searchTerm,
           filters,
-          { startDate: dateRange.startDate, endDate: dateRange.endDate, dateRangeType }
+          { startDate: dateRange.startDate, endDate: dateRange.endDate, dateRangeType },
+          selectedEmployeeId || null
         );
         setApiData(response);
         setTotalCandidates(response?.totalCandidates || 0);
@@ -144,7 +155,7 @@ const CallDetails = () => {
     };
 
     fetchCandidates();
-  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters, dateRange.startDate, dateRange.endDate, dateRangeType]);
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters, dateRange.startDate, dateRange.endDate, dateRangeType, selectedEmployeeId]);
 
   // Add useEffect to fetch qualifications and localities
   useEffect(() => {
@@ -170,6 +181,25 @@ const CallDetails = () => {
     fetchFilterData();
   }, []);
 
+  // Fetch employees list (admin only)
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      if (isAdmin) {
+        try {
+          const response = await EmployeeServices.getAllEmployees();
+          if (response && response.employees && Array.isArray(response.employees)) {
+            setEmployees(response.employees);
+          }
+        } catch (error) {
+          console.error("Error fetching employees:", error);
+          toast.error("Failed to load employees list");
+        }
+      }
+    };
+
+    fetchEmployees();
+  }, [isAdmin]);
+
   // Date range handlers
   const handleDateRangeChange = (startDate, endDate) => {
     setDateRange({
@@ -178,6 +208,39 @@ const CallDetails = () => {
     });
     // Reset to page 1 when date range changes
     setCurrentPage(1);
+  };
+
+  // Format date for display
+  const formatDateDisplay = (date, type) => {
+    if (!date) {
+      if (dateRangeType === 'year') {
+        return type === 'start' ? 'Start Year' : 'End Year';
+      } else if (dateRangeType === 'month') {
+        return type === 'start' ? 'Start Month' : 'End Month';
+      } else {
+        return type === 'start' ? 'Start Date' : 'End Date';
+      }
+    }
+    
+    if (dateRangeType === 'year') {
+      return date.getFullYear().toString();
+    } else if (dateRangeType === 'month') {
+      return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    } else {
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+  };
+
+  // Handle start date selection
+  const handleStartDateSelect = (date) => {
+    handleDateRangeChange(date, dateRange.endDate);
+    setShowStartDateModal(false);
+  };
+
+  // Handle end date selection
+  const handleEndDateSelect = (date) => {
+    handleDateRangeChange(dateRange.startDate, date);
+    setShowEndDateModal(false);
   };
 
   const handleDateRangeTypeChange = (type) => {
@@ -194,6 +257,7 @@ const CallDetails = () => {
   const [selectedCandidates, setSelectedCandidates] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [markingDataSaved, setMarkingDataSaved] = useState(false);
+  const [unlockingCandidates, setUnlockingCandidates] = useState(false);
 
   // Add useEffect for Escape key handling
   useEffect(() => {
@@ -211,6 +275,12 @@ const CallDetails = () => {
         if (showBulkUploadModal) {
           setShowBulkUploadModal(false);
         }
+        if (showStartDateModal) {
+          setShowStartDateModal(false);
+        }
+        if (showEndDateModal) {
+          setShowEndDateModal(false);
+        }
       }
     };
 
@@ -221,7 +291,7 @@ const CallDetails = () => {
     return () => {
       document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [showViewModal, showEditModal, showBulkUploadModal]);
+  }, [showViewModal, showEditModal, showBulkUploadModal, showStartDateModal, showEndDateModal]);
 
   const handleResetField = () => {
     if (candidateRef && candidateRef.current) {
@@ -250,6 +320,9 @@ const CallDetails = () => {
     setMobileError("");
     setDuplicateInfo(null);
     setDuplicityCheckCount(0);
+    setSelectedEmployeeId(""); // Clear employee filter
+    setEmployeeSearchTerm(""); // Clear employee search
+    setShowEmployeeDropdown(false); // Close employee dropdown
     // Force a refresh
     setRefreshKey(prev => prev + 1);
   };
@@ -912,7 +985,10 @@ const CallDetails = () => {
 
   const dropdownRef = useRef(null);
   const filterButtonRef = useRef(null);
+  const employeeDropdownRef = useRef(null);
+  const employeeButtonRef = useRef(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [employeeDropdownPosition, setEmployeeDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   // Calculate dropdown position when it opens
   useEffect(() => {
@@ -963,6 +1039,55 @@ const CallDetails = () => {
     };
   }, [showFilterDropdown]);
 
+  // Calculate employee dropdown position when it opens
+  useEffect(() => {
+    const updateEmployeePosition = () => {
+      if (showEmployeeDropdown && employeeButtonRef.current) {
+        const rect = employeeButtonRef.current.getBoundingClientRect();
+        setEmployeeDropdownPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: rect.width
+        });
+      }
+    };
+
+    if (showEmployeeDropdown) {
+      updateEmployeePosition();
+      // Update position on scroll and resize
+      window.addEventListener('scroll', updateEmployeePosition, true);
+      window.addEventListener('resize', updateEmployeePosition);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', updateEmployeePosition, true);
+      window.removeEventListener('resize', updateEmployeePosition);
+    };
+  }, [showEmployeeDropdown]);
+
+  // Add click outside handler for employee dropdown
+  useEffect(() => {
+    function handleEmployeeClickOutside(event) {
+      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(event.target) &&
+          employeeButtonRef.current && !employeeButtonRef.current.contains(event.target)) {
+        setShowEmployeeDropdown(false);
+      }
+    }
+
+    // Add event listener when dropdown is open
+    if (showEmployeeDropdown) {
+      document.addEventListener("mousedown", handleEmployeeClickOutside);
+      // Also close on scroll
+      window.addEventListener("scroll", handleEmployeeClickOutside, true);
+    }
+    
+    // Clean up the event listener
+    return () => {
+      document.removeEventListener("mousedown", handleEmployeeClickOutside);
+      window.removeEventListener("scroll", handleEmployeeClickOutside, true);
+    };
+  }, [showEmployeeDropdown]);
+
   // Add a function to highlight matched text
   const highlightText = (text, highlight) => {
     if (!highlight || !text) return text;
@@ -1007,6 +1132,32 @@ const CallDetails = () => {
       toast.error(error.response?.data?.message || "Failed to mark data saved");
     } finally {
       setMarkingDataSaved(false);
+    }
+  };
+
+  // Handle bulk unlock candidates
+  const handleBulkUnlockCandidates = async () => {
+    if (selectedCandidates.length === 0) {
+      toast.error("No candidates selected");
+      return;
+    }
+
+    setUnlockingCandidates(true);
+    try {
+      const response = await EmployeeServices.bulkUnlockCandidates(selectedCandidates);
+      toast.success(response.message || `Successfully unlocked ${selectedCandidates.length} candidate(s)`);
+      
+      // Clear selection after successful update
+      setSelectedCandidates([]);
+      setSelectAll(false);
+      
+      // Refresh the table data
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error('Error unlocking candidates:', error);
+      toast.error(error.response?.data?.message || "Failed to unlock candidates");
+    } finally {
+      setUnlockingCandidates(false);
     }
   };
 
@@ -1091,7 +1242,44 @@ const CallDetails = () => {
   useEffect(() => {
     setSelectedCandidates([]);
     setSelectAll(false);
-  }, [filters, dateRange, searchTerm]);
+  }, [filters, dateRange, searchTerm, selectedEmployeeId]);
+
+  // Filter out invalid selections when filteredData changes
+  // This ensures selectedCandidates only contains IDs that exist in current filteredData
+  useEffect(() => {
+    if (!filteredData || filteredData.length === 0) {
+      // If no filtered data, clear all selections
+      setSelectedCandidates(prev => {
+        if (prev.length > 0) {
+          setSelectAll(false);
+          return [];
+        }
+        return prev;
+      });
+      return;
+    }
+
+    // Get valid candidate IDs from current filtered data
+    const validCandidateIds = new Set(filteredData.map(candidate => candidate._id));
+    
+    // Filter out any selected candidates that are not in current filtered data
+    setSelectedCandidates(prev => {
+      if (prev.length === 0) return prev;
+      
+      const validSelections = prev.filter(id => validCandidateIds.has(id));
+      
+      // Only update if there's a difference (some selections were invalid)
+      if (validSelections.length !== prev.length) {
+        // Update selectAll state if needed
+        if (validSelections.length === 0) {
+          setSelectAll(false);
+        }
+        return validSelections;
+      }
+      
+      return prev;
+    });
+  }, [filteredData]);
 
   return (
     <>
@@ -1360,96 +1548,68 @@ const CallDetails = () => {
                 </select>
               </div>
               
-              {/* Date Range Picker */}
+              {/* Date Range Picker - Using Modal Approach */}
               {dateRangeType === 'year' ? (
                 <>
                   <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[120px]">
-                    <DatePicker
-                      selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
-                      selectsStart
-                      startDate={dateRange.startDate}
-                      endDate={dateRange.endDate}
-                      dateFormat="yyyy"
-                      showYearPicker
-                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
-                      placeholderText="Start Year"
-                      popperClassName="z-[10000]"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowStartDateModal(true)}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 text-left"
+                    >
+                      {formatDateDisplay(dateRange.startDate, 'start')}
+                    </button>
                   </div>
                   <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[120px]">
-                    <DatePicker
-                      selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
-                      selectsEnd
-                      startDate={dateRange.startDate}
-                      endDate={dateRange.endDate}
-                      dateFormat="yyyy"
-                      showYearPicker
-                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
-                      placeholderText="End Year"
-                      popperClassName="z-[10000]"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEndDateModal(true)}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 text-left"
+                    >
+                      {formatDateDisplay(dateRange.endDate, 'end')}
+                    </button>
                   </div>
                 </>
               ) : dateRangeType === 'month' ? (
                 <>
                   <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[130px]">
-                    <DatePicker
-                      selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
-                      selectsStart
-                      startDate={dateRange.startDate}
-                      endDate={dateRange.endDate}
-                      dateFormat="MMM-yyyy"
-                      showMonthYearPicker
-                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
-                      placeholderText="Start Month"
-                      popperClassName="z-[10000]"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowStartDateModal(true)}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 text-left"
+                    >
+                      {formatDateDisplay(dateRange.startDate, 'start')}
+                    </button>
                   </div>
                   <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[130px]">
-                    <DatePicker
-                      selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
-                      selectsEnd
-                      startDate={dateRange.startDate}
-                      endDate={dateRange.endDate}
-                      dateFormat="MMM-yyyy"
-                      showMonthYearPicker
-                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
-                      placeholderText="End Month"
-                      popperClassName="z-[10000]"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEndDateModal(true)}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 text-left"
+                    >
+                      {formatDateDisplay(dateRange.endDate, 'end')}
+                    </button>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[130px]">
-                    <DatePicker
-                      selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
-                      selectsStart
-                      startDate={dateRange.startDate}
-                      endDate={dateRange.endDate}
-                      dateFormat="dd-MMM-yyyy"
-                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
-                      placeholderText="Start Date"
-                      popperClassName="z-[10000]"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowStartDateModal(true)}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 text-left"
+                    >
+                      {formatDateDisplay(dateRange.startDate, 'start')}
+                    </button>
                   </div>
                   <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[130px]">
-                    <DatePicker
-                      selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
-                      selectsEnd
-                      startDate={dateRange.startDate}
-                      endDate={dateRange.endDate}
-                      dateFormat="dd-MMM-yyyy"
-                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
-                      placeholderText="End Date"
-                      popperClassName="z-[10000]"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEndDateModal(true)}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 text-left"
+                    >
+                      {formatDateDisplay(dateRange.endDate, 'end')}
+                    </button>
                   </div>
                 </>
               )}
@@ -1507,7 +1667,146 @@ const CallDetails = () => {
                       )}
                     </button>
                   </div>
+                  
+                  {/* Bulk Unlock Button (Admin Only) */}
+                  {isAdmin && (
+                    <div className="w-full sm:w-auto md:w-auto sm:flex-none">
+                      <button
+                        onClick={handleBulkUnlockCandidates}
+                        disabled={unlockingCandidates}
+                        className="flex items-center justify-center w-full px-3 py-1.5 rounded-md text-xs bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {unlockingCandidates ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Unlocking...
+                          </>
+                        ) : (
+                          <>
+                            <FaUnlock className="mr-1.5" />
+                            Bulk Unlock ({selectedCandidates.length})
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </>
+              )}
+              
+              {/* Employee Filter Dropdown with Search (Admin Only) - Last Position */}
+              {isAdmin && (
+                <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[220px] relative">
+                  <button
+                    ref={employeeButtonRef}
+                    type="button"
+                    onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
+                    className="w-full px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 flex items-center justify-between"
+                  >
+                    <span className="truncate">
+                      {selectedEmployeeId 
+                        ? employees.find(emp => emp._id === selectedEmployeeId)?.name || "Select Employee"
+                        : "All Employees"}
+                    </span>
+                    <FaChevronRight 
+                      className={`ml-2 h-3 w-3 transition-transform ${showEmployeeDropdown ? 'rotate-90' : ''}`}
+                    />
+                  </button>
+                </div>
+              )}
+              
+              {/* Employee Dropdown - Using Portal */}
+              {isAdmin && showEmployeeDropdown && createPortal(
+                <div 
+                  ref={employeeDropdownRef}
+                  className="fixed bg-white dark:bg-gray-800 rounded-md shadow-xl border border-gray-200 dark:border-gray-700"
+                  style={{
+                    top: `${employeeDropdownPosition.top}px`,
+                    left: `${employeeDropdownPosition.left}px`,
+                    width: `${employeeDropdownPosition.width || 220}px`,
+                    zIndex: 9999,
+                    maxHeight: '60vh',
+                  }}
+                >
+                  <div className="flex flex-col overflow-hidden">
+                    {/* Search Input */}
+                    <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                      <input
+                        type="text"
+                        placeholder="Search employees"
+                        value={employeeSearchTerm}
+                        onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+                        className="w-full px-2 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    
+                    {/* Employee List */}
+                    <div 
+                      className="overflow-y-auto flex-1"
+                      style={{ 
+                        scrollBehavior: 'smooth',
+                        overscrollBehavior: 'contain',
+                        WebkitOverflowScrolling: 'touch',
+                        maxHeight: 'calc(60vh - 60px)'
+                      }}
+                      onWheel={(e) => {
+                        // Prevent scroll from propagating to parent
+                        e.stopPropagation();
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedEmployeeId("");
+                          setShowEmployeeDropdown(false);
+                          setEmployeeSearchTerm("");
+                          setCurrentPage(1);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                          selectedEmployeeId === "" ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white"
+                        }`}
+                      >
+                        All Employees
+                      </button>
+                      {employees
+                        .filter(employee => 
+                          employee.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
+                          employee.email.toLowerCase().includes(employeeSearchTerm.toLowerCase())
+                        )
+                        .map((employee) => (
+                          <button
+                            key={employee._id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedEmployeeId(employee._id);
+                              setShowEmployeeDropdown(false);
+                              setEmployeeSearchTerm("");
+                              setCurrentPage(1);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                              selectedEmployeeId === employee._id 
+                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
+                                : "text-gray-900 dark:text-white"
+                            }`}
+                          >
+                            {employee.name}
+                          </button>
+                        ))}
+                      {employees.filter(employee => 
+                        employee.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
+                        employee.email.toLowerCase().includes(employeeSearchTerm.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                          No employees found
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>,
+                document.body
               )}
             </div>
           </div>
@@ -1548,7 +1847,8 @@ const CallDetails = () => {
               </div>
 
               {/* Cards Grid */}
-              <CandidatesCard 
+              <div className="w-full max-w-full overflow-x-hidden">
+                <CandidatesCard 
                 candidates={filteredData}
                 onView={handleView}
                 onEdit={handleEdit}
@@ -1559,6 +1859,7 @@ const CallDetails = () => {
                 onUnlockDuplicacy={handleUnlockDuplicacy}
                 isAdmin={isAdmin}
               />
+              </div>
               
               {/* Pagination controls - at bottom of cards */}
               {filteredData.length > 0 && displayTotalPages > 0 && (
@@ -1995,6 +2296,120 @@ const CallDetails = () => {
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* Start Date Picker Modal */}
+      {showStartDateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setShowStartDateModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-4 py-3 border-b dark:border-gray-700">
+              <h3 className="text-lg font-bold dark:text-[#e2692c] text-[#1a5d96]">
+                Select Start {dateRangeType === 'year' ? 'Year' : dateRangeType === 'month' ? 'Month' : 'Date'}
+              </h3>
+              <button
+                onClick={() => setShowStartDateModal(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <MdClose className="text-xl" />
+              </button>
+            </div>
+            <div className="p-4 flex justify-center">
+              {dateRangeType === 'year' ? (
+                <DatePicker
+                  selected={dateRange.startDate}
+                  onChange={handleStartDateSelect}
+                  selectsStart
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  dateFormat="yyyy"
+                  showYearPicker
+                  inline
+                  className="w-full"
+                />
+              ) : dateRangeType === 'month' ? (
+                <DatePicker
+                  selected={dateRange.startDate}
+                  onChange={handleStartDateSelect}
+                  selectsStart
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  dateFormat="MMM-yyyy"
+                  showMonthYearPicker
+                  inline
+                  className="w-full"
+                />
+              ) : (
+                <DatePicker
+                  selected={dateRange.startDate}
+                  onChange={handleStartDateSelect}
+                  selectsStart
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  dateFormat="dd-MMM-yyyy"
+                  inline
+                  className="w-full"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* End Date Picker Modal */}
+      {showEndDateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setShowEndDateModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-4 py-3 border-b dark:border-gray-700">
+              <h3 className="text-lg font-bold dark:text-[#e2692c] text-[#1a5d96]">
+                Select End {dateRangeType === 'year' ? 'Year' : dateRangeType === 'month' ? 'Month' : 'Date'}
+              </h3>
+              <button
+                onClick={() => setShowEndDateModal(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <MdClose className="text-xl" />
+              </button>
+            </div>
+            <div className="p-4 flex justify-center">
+              {dateRangeType === 'year' ? (
+                <DatePicker
+                  selected={dateRange.endDate}
+                  onChange={handleEndDateSelect}
+                  selectsEnd
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  dateFormat="yyyy"
+                  showYearPicker
+                  inline
+                  className="w-full"
+                />
+              ) : dateRangeType === 'month' ? (
+                <DatePicker
+                  selected={dateRange.endDate}
+                  onChange={handleEndDateSelect}
+                  selectsEnd
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  dateFormat="MMM-yyyy"
+                  showMonthYearPicker
+                  inline
+                  className="w-full"
+                />
+              ) : (
+                <DatePicker
+                  selected={dateRange.endDate}
+                  onChange={handleEndDateSelect}
+                  selectsEnd
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  dateFormat="dd-MMM-yyyy"
+                  inline
+                  className="w-full"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -5,6 +5,8 @@
   overflow: hidden;
   min-height: 240px;
   max-height: 280px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .candidate-card-new::before {
@@ -37,6 +39,10 @@
   padding: 14px 18px;
   gap: 18px;
   min-height: 240px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .checkbox-wrapper {
@@ -68,6 +74,8 @@
   @apply flex items-start gap-3;
   flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .profile-avatar-compact {
@@ -82,6 +90,8 @@
 
 .header-info {
   @apply flex-1 min-w-0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .name-salary-wrapper {
@@ -89,6 +99,8 @@
   margin-bottom: 6px;
   flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .candidate-name {
@@ -133,6 +145,9 @@
 .candidate-details-compact {
   @apply grid grid-cols-2 gap-x-5 gap-y-2;
   margin-bottom: 10px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .detail-compact {
@@ -238,9 +253,11 @@
 .candidate-right-section {
   @apply flex flex-col items-end justify-between;
   min-width: 160px;
+  max-width: 160px;
   flex-shrink: 0;
   padding-left: 14px;
   border-left: 1px solid rgba(229, 231, 235, 0.5);
+  box-sizing: border-box;
 }
 
 .action-buttons-wrapper {
@@ -465,26 +482,34 @@
 @media (max-width: 1024px) {
   .candidate-card-content {
     gap: 12px;
+    width: 100%;
+    max-width: 100%;
   }
   
   .candidate-right-section {
     min-width: 120px;
+    max-width: 120px;
   }
 }
 
 @media (max-width: 768px) {
   .candidate-card-new {
     max-height: none;
+    width: 100%;
+    max-width: 100%;
   }
 
   .candidate-card-content {
     @apply flex-col;
     gap: 12px;
+    width: 100%;
+    max-width: 100%;
   }
   
   .candidate-right-section {
     @apply border-l-0 border-t border-gray-200 dark:border-gray-700;
     min-width: 100%;
+    max-width: 100%;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;

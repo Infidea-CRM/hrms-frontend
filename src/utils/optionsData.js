@@ -92,9 +92,9 @@ export const courseOptions = [
   { value: "MCom", label: "MCom" },
   { value: "MSc", label: "MSc" },
   { value: "MSW - Social Work", label: "MSW - Social Work" },
-  { value: "Other", label: "Other" },
   { value: "PhD ", label: "PhD – Other" },
-  { value: "Travel & Tourism", label: "Travel & Tourism" }
+  { value: "Travel & Tourism", label: "Travel & Tourism" },
+  { value: "Other", label: "Other" }
 ];
 
 // Current Department options
@@ -530,13 +530,13 @@ export const workModeOptions = [
 
 // Notice Period options
 export const noticePeriodOptions = [
+  { value: "Immediate Joiner", label: "Immediate Joiner" },
   { value: "7 days", label: "7 days" },
   { value: "15 days", label: "15 days" },
   { value: "30 days", label: "30 days" },
   { value: "45 days", label: "45 days" },
   { value: "60 days", label: "60 days" },
-  { value: "90 days", label: "90 days" },
-  { value: "more", label: "More" }
+  { value: "90 days", label: "90 days" }
 ];
 
 // Relocation options for filters

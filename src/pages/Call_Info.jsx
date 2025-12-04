@@ -89,33 +89,43 @@ function CallInfo() {
     candidateName: "",
     source: "",
     gender: "",
+    customGender: "",
     contactNumber: "",
     whatsappNumber: "",
     experience: "",
+    customExperience: "",
     qualification: "",
+    customQualification: "",
     course: "",
     customCourse: "",
     completionStatus: "",
     completionYear: "",
     currentSalary: "",
     state: "",
+    customState: "",
     city: "",
+    customCity: "",
     locality: "",
+    customLocality: "",
     salaryExpectations: "",
     levelOfCommunication: "",
+    customCommunication: "",
     currentDepartment: "",
     customCurrentDepartment: "",
     currentProfile: "",
     shiftPreference: "",
+    customShiftPreference: "",
     noticePeriod: "",
+    customNoticePeriod: "",
     callStatus: "",
+    customCallStatus: "",
     callSummary: "-",
     callDuration: "",
+    customCallDuration: "",
     dataSaved: "",
     lineupCompany: "",
     customLineupCompany: "",
     lineupProcess: "",
-    customLineupCompany: "",
     interviewDate: "",
     walkinDate: "",
     workMode: "Work From Home",
@@ -131,7 +141,11 @@ function CallInfo() {
   // Prefill contact number if redirected from duplicity check
   useEffect(() => {
     if (location.state && location.state.prefillNumber) {
-      setFormData(prev => ({ ...prev, contactNumber: location.state.prefillNumber }));
+      setFormData(prev => ({ 
+        ...prev, 
+        contactNumber: location.state.prefillNumber,
+        whatsappNumber: location.state.prefillNumber 
+      }));
     }
   }, [location.state]);
 
@@ -358,25 +372,74 @@ function CallInfo() {
     };
   }, []);
 
+  const handleContactNumberPaste = (e) => {
+    e.preventDefault();
+    const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+    
+    // Allow only numbers
+    let numberOnly = pastedText.replace(/\D/g, '');
+    
+    // If number starts with 91 and has 12 or more digits, remove the 91 prefix
+    if (numberOnly.length >= 12 && numberOnly.startsWith('91')) {
+      numberOnly = numberOnly.substring(2); // Remove '91' prefix
+    }
+    
+    // Limit to 10 digits maximum
+    if (numberOnly.length > 10) {
+      numberOnly = numberOnly.substring(0, 10);
+    }
+    
+    // Process the value directly (same logic as handleChange for contactNumber)
+    if (numberOnly.length > 0 && numberOnly.length !== 10) {
+      setPhoneError(`Phone number must be 10 digits. Current: ${numberOnly.length}`);
+      setDuplicateInfo(null);
+    } else {
+      setPhoneError("");
+      
+      // Check for duplicate when mobile number is exactly 10 digits
+      if (numberOnly.length === 10) {
+        checkDuplicateMobile(numberOnly);
+      } else {
+        setDuplicateInfo(null);
+      }
+    }
+    
+    // Auto-fill WhatsApp number with contact number
+    setFormData(prev => ({ ...prev, contactNumber: numberOnly, whatsappNumber: numberOnly }));
+  };
+
   const handleChange = (field, value) => {
     if (field === "contactNumber") {
+      // Allow only numbers
+      let numberOnly = value.replace(/\D/g, '');
+      
+      // If number starts with 91 and has 12 or more digits, remove the 91 prefix
+      if (numberOnly.length >= 12 && numberOnly.startsWith('91')) {
+        numberOnly = numberOnly.substring(2); // Remove '91' prefix
+      }
+      
+      // Limit to 10 digits maximum
+      if (numberOnly.length > 10) {
+        numberOnly = numberOnly.substring(0, 10);
+      }
+      
       // Validate phone number length
-      if (value.length > 0 && value.length !== 10) {
-        setPhoneError(`Phone number must be 10 digits. Current: ${value.length}`);
+      if (numberOnly.length > 0 && numberOnly.length !== 10) {
+        setPhoneError(`Phone number must be 10 digits. Current: ${numberOnly.length}`);
         setDuplicateInfo(null);
       } else {
         setPhoneError("");
         
         // Check for duplicate when mobile number is exactly 10 digits
-        if (value.length === 10) {
-          checkDuplicateMobile(value);
+        if (numberOnly.length === 10) {
+          checkDuplicateMobile(numberOnly);
         } else {
           setDuplicateInfo(null);
         }
       }
       
       // Auto-fill WhatsApp number with contact number
-      setFormData(prev => ({ ...prev, [field]: value, whatsappNumber: value }));
+      setFormData(prev => ({ ...prev, [field]: numberOnly, whatsappNumber: numberOnly }));
       return;
     }
     
@@ -394,9 +457,36 @@ function CallInfo() {
     if (field === "city") {
       // If city changed and not Indore, clear the locality
       if (value.toLowerCase() !== "indore") {
-        setFormData(prev => ({ ...prev, [field]: value, locality: "" }));
+        setFormData(prev => ({ ...prev, [field]: value, locality: "", customLocality: "" }));
+      } else if (value.toLowerCase() === "others") {
+        setFormData(prev => ({ ...prev, [field]: value, customCity: "" }));
       } else {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        setFormData(prev => ({ ...prev, [field]: value, customCity: "" }));
+      }
+      return;
+    }
+    
+    // Handle Others option for all dropdown fields
+    const othersFields = [
+      "gender", "experience", "qualification", "state", "locality",
+      "levelOfCommunication", "shiftPreference", "noticePeriod", 
+      "callStatus", "callDuration"
+    ];
+    
+    if (othersFields.includes(field)) {
+      const customFieldKey = `custom${field.charAt(0).toUpperCase() + field.slice(1)}`;
+      if (value.toLowerCase() === "others") {
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          [customFieldKey]: ""
+        }));
+      } else {
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          [customFieldKey]: ""
+        }));
       }
       return;
     }
@@ -490,6 +580,13 @@ function CallInfo() {
     setShowResetModal(false);
   };
 
+  const handleFormKeyDown = (e) => {
+    // Prevent form submission on Enter key
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -508,28 +605,28 @@ function CallInfo() {
         mobileNo: formData.contactNumber,
         whatsappNo: formData.whatsappNumber,
         source: formData.source,
-        gender: formData.gender,
-        experience: formData.experience,
-        qualification: formData.qualification,
+        gender: formData.gender === "Others" ? formData.customGender : formData.gender,
+        experience: formData.experience === "Others" ? formData.customExperience : formData.experience,
+        qualification: formData.qualification === "Others" ? formData.customQualification : formData.qualification,
         course: formData.course === "Other" ? formData.customCourse : formData.course,
         customCourse: formData.customCourse,
         completionStatus: formData.completionStatus,
         completionYear: formData.completionYear,
         currentSalary: formData.currentSalary,
-        state: formData.state,
-        city: formData.city,
+        state: formData.state === "Others" ? formData.customState : formData.state,
+        city: formData.city === "Others" ? formData.customCity : formData.city,
         salaryExpectation: formData.salaryExpectations,
-        communication: formData.levelOfCommunication,
+        communication: formData.levelOfCommunication === "Others" ? formData.customCommunication : formData.levelOfCommunication,
         currentDepartment: formData.currentDepartment === "Other" ? formData.customCurrentDepartment : formData.currentDepartment,
         customCurrentDepartment: formData.customCurrentDepartment,
         currentProfile: formData.currentProfile,
-        shift: formData.shiftPreference,
-        noticePeriod: formData.noticePeriod,
-        callStatus: formData.callStatus,
-        callDuration: formData.callDuration,
+        shift: formData.shiftPreference === "Others" ? formData.customShiftPreference : formData.shiftPreference,
+        noticePeriod: formData.noticePeriod === "Others" ? formData.customNoticePeriod : formData.noticePeriod,
+        callStatus: formData.callStatus === "Others" ? formData.customCallStatus : formData.callStatus,
+        callDuration: formData.callDuration === "Others" ? formData.customCallDuration : formData.callDuration,
         dataSaved: formData.dataSaved,
         callSummary: formData.callSummary,
-        locality: formData.locality,
+        locality: formData.locality === "Others" ? formData.customLocality : formData.locality,
         lineupCompany: formData.lineupCompany === "others" ? formData.customLineupCompany : formData.lineupCompany,
         customLineupCompany: formData.customLineupCompany,
         lineupProcess: formData.lineupProcess,
@@ -584,14 +681,16 @@ function CallInfo() {
     value: `${i + 1}`, 
     label: `${i + 1} ${i === 0 ? 'Minute' : 'Minutes'}`
   }));
-  callDurationOptions.unshift({ value: "", label: "Select Duration" });
+  callDurationOptions.unshift({ value: "", label: "" });
 
   // Create qualification options from API data
   const qualificationOptions = [
     ...(qualifications?.map(qual => ({ 
       value: qual.name || qual, 
       label: qual.name || qual 
-    })) || [])
+    })) || []),
+    { value: "Diploma", label: "Diploma" },
+    { value: "Others", label: "Others" }
   ];
 
   // Create state options from API data
@@ -599,7 +698,8 @@ function CallInfo() {
     ...(states?.map(state => ({ 
       value: state.name, 
       label: state.name 
-    })) || [])
+    })) || []).filter(state => state.value !== "Others" && state.value !== "Other"),
+    { value: "Others", label: "Others" }
   ];
 
   // Create city options from API data
@@ -607,7 +707,8 @@ function CallInfo() {
     ...(cities?.map(city => ({ 
       value: city.name || city, 
       label: city.name || city 
-    })) || [])
+    })) || []).filter(city => city.value !== "Others" && city.value !== "Other"),
+    { value: "Others", label: "Others" }
   ];
 
   // Create locality options from API data (for Indore only)
@@ -615,19 +716,49 @@ function CallInfo() {
     ...(localities?.map(locality => ({ 
       value: locality.name || locality, 
       label: locality.name || locality 
-    })) || [])
+    })) || []),
+    { value: "Others", label: "Others" }
   ];
 
   // Create shift preference options with empty option
   const shiftPreferenceOptionsWithEmpty = [
-    { value: "", label: "Select Shift Preference" },
-    ...shiftPreferenceOptions
+    { value: "", label: "" },
+    ...shiftPreferenceOptions,
+    { value: "Others", label: "Others" }
   ];
 
   // Create notice period options with empty option
   const noticePeriodOptionsWithEmpty = [
-    { value: "", label: "Select Notice Period" },
-    ...noticePeriodOptions
+    { value: "", label: "" },
+    ...noticePeriodOptions,
+    { value: "Others", label: "Others" }
+  ];
+
+  // Gender options already has Others, so use it directly
+  const genderOptionsWithOthers = genderOptions;
+
+  // Add Others to experience options
+  const experienceOptionsWithOthers = [
+    ...experienceOptions,
+    { value: "Others", label: "Others" }
+  ];
+
+  // Add Others to communication options
+  const communicationOptionsWithOthers = [
+    ...communicationOptions,
+    { value: "Others", label: "Others" }
+  ];
+
+  // Add Others to call status options
+  const callStatusOptionsWithOthers = [
+    ...callStatusOptions,
+    { value: "Others", label: "Others" }
+  ];
+
+  // Add Others to call duration options
+  const callDurationOptionsWithOthers = [
+    ...callDurationOptions,
+    { value: "Others", label: "Others" }
   ];
 
   // All fields in a single flat array - rearranged as requested
@@ -639,7 +770,7 @@ function CallInfo() {
       icon: <MdPhone />, 
       type: "tel", 
       pattern: "[0-9]{10}", 
-      maxLength: 10, 
+      maxLength: 15, 
       required: true, 
       inputClass: "w-full", 
       ref: contactInputRef,
@@ -655,8 +786,8 @@ function CallInfo() {
       inputClass: "w-full"
     },
     // { label: "Sourced", key: "source", icon: <MdSource />, type: "select", options: sourceOptions, required: true, inputClass: "w-full" },
-    { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptions, required: false, inputClass: "w-full" },
-    { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptions, required: false, inputClass: "w-full" },
+    { label: "Gender", key: "gender", icon: <MdPerson />, type: "select", options: genderOptionsWithOthers, required: false, inputClass: "w-full" },
+    { label: "Experience", key: "experience", icon: <MdWork />, type: "select", options: experienceOptionsWithOthers, required: false, inputClass: "w-full" },
     { label: "Job Interested In", key: "jobInterestedIn", icon: <MdWork />, required: false, inputClass: "w-full" },
     { label: "State", key: "state", icon: <MdPublic />, type: "select", options: stateOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.states },
     { label: "City", key: "city", icon: <MdLocationCity />, type: "select", options: cityOptions, required: false, inputClass: "w-full", loading: loadingDropdownData.cities },
@@ -668,10 +799,10 @@ function CallInfo() {
     { label: "Expected Salary", key: "salaryExpectations", icon: <IoCashOutline />, required: false, inputClass: "w-full" },
     { label: "Current Department", key: "currentDepartment", icon: <MdBusinessCenter />, type: "select", options: currentDepartmentOptions, required: false, inputClass: "w-full" },
     { label: "Current Profile", key: "currentProfile", icon: <MdWork />, required: false, inputClass: "w-full" },
-    { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptions, required: false, inputClass: "w-full" },
+    { label: "Communication Level", key: "levelOfCommunication", icon: <MdMessage />, type: "select", options: communicationOptionsWithOthers, required: false, inputClass: "w-full" },
     { label: "Shift Preference", key: "shiftPreference", icon: <MdAccessTime />, type: "select", options: shiftPreferenceOptionsWithEmpty, required: false, inputClass: "w-full" },
     { label: "Notice Period", key: "noticePeriod", icon: <MdAccessTime />, type: "select", options: noticePeriodOptionsWithEmpty, required: false, inputClass: "w-full" },
-    { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptions, required: false, inputClass: "w-full" },
+    { label: "Call Status", key: "callStatus", icon: <MdWifiCalling3 />, type: "select", options: callStatusOptionsWithOthers, required: false, inputClass: "w-full" },
     { 
       label: "Walkin Date", 
       key: "walkinDate", 
@@ -692,7 +823,7 @@ function CallInfo() {
             onChange={(date) => handleChange(key, date ? date.toISOString() : "")}
             minDate={minDate}
             dateFormat="dd/MM/yyyy"
-            placeholderText="Select date"
+            placeholderText=""
             required={required}
             ref={key === "walkinDate" ? walkinDateRef : undefined}
             className={`px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
@@ -741,7 +872,7 @@ function CallInfo() {
             onChange={(date) => handleChange(key, date ? date.toISOString() : "")}
             minDate={minDate}
             dateFormat="dd/MM/yyyy"
-            placeholderText="Select date"
+            placeholderText=""
             required={required}
             ref={key === "interviewDate" ? interviewDateRef : undefined}
             className={`px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
@@ -751,7 +882,7 @@ function CallInfo() {
         </div>
       )
     },
-    { label: "Call Duration", key: "callDuration", icon: <MdWatch />, type: "select", options: callDurationOptions, required: false, inputClass: "w-full" },
+    { label: "Call Duration", key: "callDuration", icon: <MdWatch />, type: "select", options: callDurationOptionsWithOthers, required: false, inputClass: "w-full" },
     { label: "Data Saved", key: "dataSaved", icon: <MdTask />, type: "select", options: [{ value: "Saved", label: "Saved" }, { value: "Not Saved", label: "Not Saved" }], required: false, inputClass: "w-full" },
   ];
 
@@ -1073,7 +1204,7 @@ function CallInfo() {
           )}
         </Modal>
 
-        <form key={formKey} id="call-info-form" onSubmit={handleSubmit} className="flex-1 overflow-auto">
+        <form key={formKey} id="call-info-form" onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="flex-1 overflow-auto">
           {/* All fields in a grid layout */}
           <div className="rounded-lg p-3 sm:p-4 shadow-md border dark:bg-gray-800 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-3 sm:gap-x-4 gap-y-3">
@@ -1101,7 +1232,7 @@ function CallInfo() {
                             options={options}
                             value={formData[key]}
                             onChange={(e) => handleChange(key, e.target.value)}
-                            placeholder={`Search ${label}...`}
+                            placeholder=""
                             required={isFieldRequired}
                             disabled={loading || disabled}
                             darkMode={darkMode}
@@ -1113,7 +1244,8 @@ function CallInfo() {
                             type={type || "text"}
                             value={formData[key]}
                             onChange={(e) => handleChange(key, e.target.value)}
-                            placeholder={label}
+                            onPaste={key === "contactNumber" ? handleContactNumberPaste : undefined}
+                            placeholder=""
                             required={isFieldRequired}
                             pattern={pattern}
                             maxLength={maxLength}
@@ -1143,13 +1275,25 @@ function CallInfo() {
                           options={localityOptions}
                           value={formData.locality}
                           onChange={(e) => handleChange("locality", e.target.value)}
-                          placeholder="Search locality..."
+                          placeholder=""
                           required={false}
                           disabled={loadingDropdownData.localities}
                           darkMode={darkMode}
                           className="w-full"
                           ref={localityInputRef}
                         />
+                        {formData.locality === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customLocality || ""}
+                            onChange={(e) => handleChange("customLocality", e.target.value)}
+                            placeholder=""
+                            required={false}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
                       </div>
                     </React.Fragment>
                   );
@@ -1186,7 +1330,7 @@ function CallInfo() {
                       <textarea
                         value={formData[key]}
                         onChange={(e) => handleChange(key, e.target.value)}
-                        placeholder={`Enter ${label.toLowerCase()}...`}
+                        placeholder=""
                         required={isFieldRequired}
                         disabled={false}
                         className={`px-2 sm:px-2.5 py-1.5 h-20 text-sm rounded-md ${darkMode 
@@ -1211,7 +1355,7 @@ function CallInfo() {
                           options={options}
                           value={formData[key]}
                           onChange={(e) => handleChange(key, e.target.value)}
-                          placeholder={`Search ${label}...`}
+                          placeholder=""
                           required={isFieldRequired}
                           disabled={loading || disabled}
                           darkMode={darkMode}
@@ -1225,7 +1369,7 @@ function CallInfo() {
                             type="text"
                             value={formData.customLineupCompany || ""}
                             onChange={(e) => handleChange("customLineupCompany", e.target.value)}
-                            placeholder="Custom company"
+                            placeholder=""
                             required={isFieldRequired && formData.lineupCompany.toLowerCase() === "others"}
                             className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
@@ -1238,7 +1382,7 @@ function CallInfo() {
                             type="text"
                             value={formData.customCourse || ""}
                             onChange={(e) => handleChange("customCourse", e.target.value)}
-                            placeholder="Enter course name"
+                            placeholder=""
                             required={isFieldRequired && formData.course === "Other"}
                             className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
@@ -1251,8 +1395,139 @@ function CallInfo() {
                             type="text"
                             value={formData.customCurrentDepartment || ""}
                             onChange={(e) => handleChange("customCurrentDepartment", e.target.value)}
-                            placeholder="Enter department name"
+                            placeholder=""
                             required={isFieldRequired && formData.currentDepartment === "Other"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {/* Custom inputs for "Others" options */}
+                        {key === "gender" && formData.gender === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customGender || ""}
+                            onChange={(e) => handleChange("customGender", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.gender === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "experience" && formData.experience === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customExperience || ""}
+                            onChange={(e) => handleChange("customExperience", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.experience === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "qualification" && formData.qualification === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customQualification || ""}
+                            onChange={(e) => handleChange("customQualification", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.qualification === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "state" && formData.state === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customState || ""}
+                            onChange={(e) => handleChange("customState", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.state === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "city" && formData.city === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customCity || ""}
+                            onChange={(e) => handleChange("customCity", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.city === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "levelOfCommunication" && formData.levelOfCommunication === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customCommunication || ""}
+                            onChange={(e) => handleChange("customCommunication", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.levelOfCommunication === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "shiftPreference" && formData.shiftPreference === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customShiftPreference || ""}
+                            onChange={(e) => handleChange("customShiftPreference", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.shiftPreference === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "noticePeriod" && formData.noticePeriod === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customNoticePeriod || ""}
+                            onChange={(e) => handleChange("customNoticePeriod", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.noticePeriod === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "callStatus" && formData.callStatus === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customCallStatus || ""}
+                            onChange={(e) => handleChange("customCallStatus", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.callStatus === "Others"}
+                            className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
+                              ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
+                              : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
+                          />
+                        )}
+                        
+                        {key === "callDuration" && formData.callDuration === "Others" && (
+                          <input
+                            type="text"
+                            value={formData.customCallDuration || ""}
+                            onChange={(e) => handleChange("customCallDuration", e.target.value)}
+                            placeholder=""
+                            required={isFieldRequired && formData.callDuration === "Others"}
                             className={`mt-1.5 px-2 sm:px-2.5 py-1.5 h-9 text-sm rounded-md ${darkMode 
                               ? 'border-gray-600 bg-gray-700 text-white focus:border-[#e2692c]' 
                               : 'border-gray-300 bg-white text-gray-800 focus:border-[#1a5d96]'} border focus:ring-1 ${darkMode ? 'focus:ring-[#e2692c]' : 'focus:ring-[#1a5d96]'} w-full`}
@@ -1265,7 +1540,8 @@ function CallInfo() {
                           type={type || "text"}
                           value={formData[key]}
                           onChange={(e) => handleChange(key, e.target.value)}
-                          placeholder={label}
+                          onPaste={key === "contactNumber" ? handleContactNumberPaste : undefined}
+                          placeholder=""
                           required={isFieldRequired}
                           pattern={pattern}
                           maxLength={maxLength}
@@ -1318,7 +1594,7 @@ function CallInfo() {
                 ref={callSummaryRef}
                 value={formData.callSummary}
                 onChange={(e) => handleChange("callSummary", e.target.value)}
-                placeholder="Enter call summary..."
+                placeholder=""
                 required={false}
                 disabled={false}
                 className={`px-2 sm:px-2.5 py-1.5 h-20 sm:h-24 w-full text-sm rounded-md ${darkMode 

@@ -10,15 +10,12 @@ import ThemeSuspense from "@/components/theme/ThemeSuspense";
 import { routes } from "@/routes";
 import { ActivityProvider } from "@/components/ActivityContext";
 import ActivityLockScreen from "@/components/activity/ActivityLockScreen";
-import { AdminContext } from "@/context/AdminContext";
 import useGetCData from "@/hooks/useGetCData";
 
 const Page404 = lazy(() => import("@/pages/404"));
 
 const Layout = () => {
-  const { isSidebarOpen, closeSidebar, navBar } = useContext(SidebarContext);
-  const { state } = useContext(AdminContext);
-  const { adminInfo } = state;
+  const { isSidebarOpen, closeSidebar } = useContext(SidebarContext);
   const { accessList = [] } = useGetCData();
   let location = useLocation();
 
@@ -30,15 +27,6 @@ const Layout = () => {
     closeSidebar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
-
-  // Check for current path authorization
-  const currentPath = location.pathname.split('/')[1]; // Get first part of path
-  const isAuthorizedPath = accessList.includes(currentPath);
-
-  // If current path is not in user's access list, redirect to dashboard
-  if (currentPath && !isAuthorizedPath && currentPath !== 'dashboard') {
-    return <Navigate to="/dashboard" replace />;
-  }
 
   return (
     <ActivityProvider>

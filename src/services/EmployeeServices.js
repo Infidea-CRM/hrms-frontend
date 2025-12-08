@@ -296,9 +296,37 @@ const EmployeeServices = {
     return requests.post("/lineups/create", body);
   },
 
-  getLineupsData: async (page = 1, limit = 10, search = "") => {
-    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
-    return requests.get(`/lineups?page=${page}&limit=${limit}${searchParam}`);
+  getLineupsData: async (page = 1, limit = 10, search = "", filters = {}, employeeId = null) => {
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('limit', limit);
+    
+    if (search) {
+      params.append('search', search);
+    }
+    
+    // Add status filter
+    if (filters.status) {
+      params.append('status', filters.status);
+    }
+    
+    // Add date range filters
+    if (filters.startDate) {
+      params.append('startDate', filters.startDate instanceof Date ? filters.startDate.toISOString() : filters.startDate);
+    }
+    if (filters.endDate) {
+      params.append('endDate', filters.endDate instanceof Date ? filters.endDate.toISOString() : filters.endDate);
+    }
+    if (filters.dateRangeType) {
+      params.append('dateRangeType', filters.dateRangeType);
+    }
+    
+    // Add employee filter (for admin)
+    if (employeeId) {
+      params.append('employeeId', employeeId);
+    }
+    
+    return requests.get(`/lineups?${params.toString()}`);
   },
 
   getWalkinsData: async (page = 1, limit = 10, search = "") => {

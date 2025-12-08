@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { FaPlus, FaSearch, FaTimesCircle,FaChevronLeft,FaChevronRight } from "react-icons/fa";
-import {
-  Table,
-  TableCell,
-  TableContainer,
-  TableHeader,
-} from "@windmill/react-ui";
+import { FaPlus, FaSearch, FaTimesCircle, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { useLocation, useNavigate } from "react-router";
 import { formatLongDate } from "@/utils/dateFormatter";
 
@@ -18,6 +12,7 @@ import { SidebarContext } from "@/context/SidebarContext";
 import { AdminContext } from "@/context/AdminContext";
 import TableLoading from "@/components/preloader/TableLoading";
 import AnimatedContent from "@/components/common/AnimatedContent";
+import EmployeeFilterDropdown from "@/components/common/EmployeeFilterDropdown";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { notifySuccess, notifyError } from "@/utils/toast";
@@ -116,6 +111,9 @@ function Lineups() {
     contactNumber: ""
   });
 
+  // Employee filter state (for admin only)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+
   const [isLoadingCandidateName, setIsLoadingCandidateName] = useState(false);
 
   // Read query parameters when component mounts
@@ -148,28 +146,6 @@ function Lineups() {
     navigate(newPath, { replace: true });
   }, [filters.status, location.pathname, navigate]);
 
-  // Fetch lineups data with pagination and search
-  useEffect(() => {
-    const fetchLineups = async () => {
-      try {
-        setLoading(true);
-        const response = await EmployeeServices.getLineupsData(currentPage, itemsPerPage, searchTerm);
-        setApiData(response);
-        setTotalLineups(response?.totalLineups || 0);
-        setTotalPages(response?.totalPages || 0);
-        setError("");
-      } catch (err) {
-        setError(err.message || "Failed to fetch lineups");
-        setApiData(null);
-        handleErrorNotification(err, "Lineups");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLineups();
-  }, [currentPage, itemsPerPage, refreshKey, searchTerm]);
-
   // Map API response to match expected format
   const data = apiData ? { lineups: apiData.lineups || [] } : null;
 
@@ -200,6 +176,43 @@ function Lineups() {
     setDateRange,
   } = useFilter(data?.lineups);
 
+  // Fetch lineups data with pagination, search, and filters
+  useEffect(() => {
+    const fetchLineups = async () => {
+      try {
+        setLoading(true);
+        
+        // Build filters object for API
+        const apiFilters = {
+          status: filters.status || "",
+          startDate: dateRange.startDate || null,
+          endDate: dateRange.endDate || null,
+          dateRangeType: dateRangeType || "day"
+        };
+        
+        const response = await EmployeeServices.getLineupsData(
+          currentPage, 
+          itemsPerPage, 
+          searchTerm, 
+          apiFilters,
+          selectedEmployeeId || null
+        );
+        setApiData(response);
+        setTotalLineups(response?.totalLineups || 0);
+        setTotalPages(response?.totalPages || 0);
+        setError("");
+      } catch (err) {
+        setError(err.message || "Failed to fetch lineups");
+        setApiData(null);
+        handleErrorNotification(err, "Lineups");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLineups();
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters.status, dateRange.startDate, dateRange.endDate, dateRangeType, selectedEmployeeId]);
+
 
   const handleResetField = () => {
     if (lineupsRef && lineupsRef.current) {
@@ -218,6 +231,7 @@ function Lineups() {
       company: "",
       process: ""
     });
+    setSelectedEmployeeId(""); // Reset employee filter
     setItemsPerPage(DEFAULT_ITEMS_PER_PAGE);
     setCurrentPage(1);
     // Force a refresh
@@ -230,6 +244,25 @@ function Lineups() {
       ...prev,
       [name]: value
     }));
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
+  // Handler for employee filter change
+  const handleEmployeeChange = (employeeId) => {
+    setSelectedEmployeeId(employeeId);
+    setCurrentPage(1); // Reset to first page when employee filter changes
+  };
+
+  // Wrapper for date range change to also reset page
+  const handleDateRangeChangeWithReset = (startDate, endDate) => {
+    handleDateRangeChange(startDate, endDate);
+    setCurrentPage(1);
+  };
+
+  // Wrapper for date range type change to also reset page
+  const handleDateRangeTypeChangeWithReset = (type) => {
+    handleDateRangeTypeChange(type);
+    setCurrentPage(1);
   };
 
   const goToPrevPage = () => {
@@ -285,17 +318,11 @@ function Lineups() {
     return pages;
   };
 
-  // Calculate total pages - this is just a mock implementation
-  const filteredByStatus = filters.status
-    ? (dataTable || []).filter(c => {
-        // Make comparison case-insensitive and trim whitespace
-        return c.status && 
-               c.status.toLowerCase().trim() === filters.status.toLowerCase().trim();
-      })
-    : (dataTable || []);
+  // Use data directly from API (filtering is now handled by backend)
+  const filteredByStatus = dataTable || [];
   
-  // Use backend pagination totalPages, but fallback to client-side calculation for filtered data
-  const displayTotalPages = totalPages || Math.ceil(filteredByStatus.length / itemsPerPage);
+  // Use backend pagination totalPages
+  const displayTotalPages = totalPages || 1;
 
   // Toggle sort order when header is clicked
   const handleSortByField = (field) => {
@@ -511,13 +538,11 @@ function Lineups() {
       <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalLineups || filteredByStatus.length}</span>
 
       {loading ? (
-        // <Loading loading={loading} />
         <TableLoading row={12} col={6} width={190} height={20} />
       ) : error ? (
         <span className="text-center mx-auto text-red-500">{error}</span>
       ) : serviceData?.length !== 0 ? (
-        <TableContainer className="mb-8">
-          
+        <div className="mb-8 rounded-lg overflow-hidden shadow-md">
           {filteredByStatus.length === 0 ? (
             <div className="p-4 text-center text-gray-600 dark:text-gray-400">
               <p>No calls match your filter criteria.</p>
@@ -528,64 +553,17 @@ function Lineups() {
                 Reset Filters
               </button>
             </div>
-          ) : 
-          (
-            <Table>
-              <TableHeader > 
-                <tr className="h-14 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300 ">
-                <TableCell className="text-center">
-                  Actions
-                  </TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("lineupCounts")}>Lineup Counts {sortBy === "lineupCounts" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("entrytime")}>Entry Date {sortBy === "entrytime" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("updatedate")}>Updated Date {sortBy === "updatedate" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-          
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("name")}>Name {sortBy === "name" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("contactNumber")}>Contact Number {sortBy === "contactNumber" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("status")}>Status{sortBy === "status" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("company")}>Company {sortBy === "company" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("process")}>Process {sortBy === "process" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("createdBy")}>Registered By {sortBy === "createdBy" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("lineupDate")}>Lineup Date {sortBy === "lineupDate" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("interviewDate")}>Interview Date {sortBy === "interviewDate" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                
-                  
-                </tr>
-              </TableHeader>
-
-              <LineupsTable 
-                lineups={filteredByStatus}
-                onView={handleView}
-                onEdit={handleEdit}
-                searchTerm={searchTerm || lineupsRef?.current?.value || ""}
-                highlightText={highlightText}
-              />
-            </Table>
+          ) : (
+            <LineupsTable 
+              lineups={filteredByStatus}
+              onView={handleView}
+              onEdit={handleEdit}
+              searchTerm={searchTerm || lineupsRef?.current?.value || ""}
+              highlightText={highlightText}
+              loading={loading}
+            />
           )}
-        </TableContainer>
+        </div>
       ) : lineupsRef.current.value != ""||dateRange.startDate != null||dateRange.endDate != null && serviceData?.length === 0 ? (
         <div className="p-4 text-center text-gray-600 dark:text-gray-400">
               <p>No calls match your filter criteria.</p>
@@ -826,7 +804,7 @@ function Lineups() {
               <div className="w-full sm:w-auto sm:flex-none sm:min-w-[120px]">
                 <select 
                   value={dateRangeType}
-                  onChange={(e) => handleDateRangeTypeChange(e.target.value)}
+                  onChange={(e) => handleDateRangeTypeChangeWithReset(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                 >
                   {dateRangeTypeOptions.map(option => (
@@ -843,7 +821,7 @@ function Lineups() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[120px]">
                     <DatePicker
                       selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
+                      onChange={(date) => handleDateRangeChangeWithReset(date, dateRange.endDate)}
                       selectsStart
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -857,7 +835,7 @@ function Lineups() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[120px]">
                     <DatePicker
                       selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
+                      onChange={(date) => handleDateRangeChangeWithReset(dateRange.startDate, date)}
                       selectsEnd
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -874,7 +852,7 @@ function Lineups() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
+                      onChange={(date) => handleDateRangeChangeWithReset(date, dateRange.endDate)}
                       selectsStart
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -888,7 +866,7 @@ function Lineups() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
+                      onChange={(date) => handleDateRangeChangeWithReset(dateRange.startDate, date)}
                       selectsEnd
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -905,7 +883,7 @@ function Lineups() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
+                      onChange={(date) => handleDateRangeChangeWithReset(date, dateRange.endDate)}
                       selectsStart
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -918,7 +896,7 @@ function Lineups() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
+                      onChange={(date) => handleDateRangeChangeWithReset(dateRange.startDate, date)}
                       selectsEnd
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -930,6 +908,13 @@ function Lineups() {
                   </div>
                 </>
               )}
+              
+              {/* Employee Filter Dropdown (Admin Only) */}
+              <EmployeeFilterDropdown
+                isAdmin={isAdmin}
+                selectedEmployeeId={selectedEmployeeId}
+                onEmployeeChange={handleEmployeeChange}
+              />
               
               {/* Items per page selector */}
               <div className="w-full sm:w-auto sm:flex-none sm:min-w-[100px]">

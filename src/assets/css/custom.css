@@ -1374,3 +1374,100 @@ input[type="number"]::-webkit-outer-spin-button {
 .tab-exit {
   animation: exitAnimation 0.8s ease forwards;
 }
+
+/* Ant Design Table - Custom Styles for Lineups */
+.lineups-antd-table .ant-table {
+  background: transparent;
+}
+
+.lineups-antd-table .ant-table-thead > tr > th {
+  background: #f9fafb;
+  color: #4b5563;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 8px;
+}
+
+.lineups-antd-table .ant-table-tbody > tr > td {
+  text-align: center;
+  padding: 12px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.lineups-antd-table .ant-table-tbody > tr:hover > td {
+  background: #f3f4f6 !important;
+}
+
+.lineups-antd-table .ant-table-column-sorter {
+  color: #9ca3af;
+}
+
+.lineups-antd-table .ant-table-column-sorter-up.active,
+.lineups-antd-table .ant-table-column-sorter-down.active {
+  color: #1a5d96;
+}
+
+/* Dark mode styles for Ant Design Table */
+.dark .lineups-antd-table .ant-table {
+  background: transparent;
+}
+
+.dark .lineups-antd-table .ant-table-thead > tr > th {
+  background: #1f2937;
+  color: #d1d5db;
+  border-bottom: 1px solid #374151;
+}
+
+.dark .lineups-antd-table .ant-table-tbody > tr > td {
+  background: #111827;
+  color: #e5e7eb;
+  border-bottom: 1px solid #374151;
+}
+
+.dark .lineups-antd-table .ant-table-tbody > tr:hover > td {
+  background: #374151 !important;
+}
+
+.dark .lineups-antd-table .ant-table-column-sorter {
+  color: #6b7280;
+}
+
+.dark .lineups-antd-table .ant-table-column-sorter-up.active,
+.dark .lineups-antd-table .ant-table-column-sorter-down.active {
+  color: #e2692c;
+}
+
+.dark .lineups-antd-table .ant-table-placeholder {
+  background: #111827;
+}
+
+.dark .lineups-antd-table .ant-empty-description {
+  color: #9ca3af;
+}
+
+/* Fix scroll styles */
+.lineups-antd-table .ant-table-body {
+  overflow-x: auto !important;
+}
+
+.dark .lineups-antd-table .ant-table-cell-fix-left,
+.dark .lineups-antd-table .ant-table-cell-fix-right {
+  background: #111827;
+}
+
+.lineups-antd-table .ant-table-cell-fix-left,
+.lineups-antd-table .ant-table-cell-fix-right {
+  background: #fff !important;
+}
+
+.lineups-antd-table .ant-table-thead > tr > th.ant-table-cell-fix-left,
+.lineups-antd-table .ant-table-thead > tr > th.ant-table-cell-fix-right {
+  background: #f9fafb !important;
+}
+
+.dark .lineups-antd-table .ant-table-thead > tr > th.ant-table-cell-fix-left,
+.dark .lineups-antd-table .ant-table-thead > tr > th.ant-table-cell-fix-right {
+  background: #1f2937 !important;
+}

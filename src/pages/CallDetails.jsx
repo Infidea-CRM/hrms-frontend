@@ -1,21 +1,17 @@
 import {
-  Table,
-  TableCell,
-  TableContainer,
-  TableHeader,
   Modal,
   ModalBody,
   ModalFooter,
   Button,
 } from "@windmill/react-ui";
-import React, { useState, useContext, useEffect, useRef } from "react";
+import React, { useState, useContext, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import NotFound from "@/components/table/NotFound";
 import useFilter from "@/hooks/useFilter";
 import EmployeeServices from "@/services/EmployeeServices";
 import AnimatedContent from "@/components/common/AnimatedContent";
-import { SidebarContext } from "@/context/SidebarContext";
+import EmployeeFilterDropdown from "@/components/common/EmployeeFilterDropdown";
 import { AdminContext } from "@/context/AdminContext";
 import DatePicker from "react-datepicker";  
 import 'react-datepicker/dist/react-datepicker.css';
@@ -120,10 +116,7 @@ const CallDetails = () => {
   const [localities, setLocalities] = useState([]);
   
   // Employee filter state (for admin only)
-  const [employees, setEmployees] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
-  const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
-  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
   
   // Date picker modal states
   const [showStartDateModal, setShowStartDateModal] = useState(false);
@@ -181,24 +174,6 @@ const CallDetails = () => {
     fetchFilterData();
   }, []);
 
-  // Fetch employees list (admin only)
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      if (isAdmin) {
-        try {
-          const response = await EmployeeServices.getAllEmployees();
-          if (response && response.employees && Array.isArray(response.employees)) {
-            setEmployees(response.employees);
-          }
-        } catch (error) {
-          console.error("Error fetching employees:", error);
-          toast.error("Failed to load employees list");
-        }
-      }
-    };
-
-    fetchEmployees();
-  }, [isAdmin]);
 
   // Date range handlers
   const handleDateRangeChange = (startDate, endDate) => {
@@ -985,10 +960,7 @@ const CallDetails = () => {
 
   const dropdownRef = useRef(null);
   const filterButtonRef = useRef(null);
-  const employeeDropdownRef = useRef(null);
-  const employeeButtonRef = useRef(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-  const [employeeDropdownPosition, setEmployeeDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   // Calculate dropdown position when it opens
   useEffect(() => {
@@ -1039,54 +1011,11 @@ const CallDetails = () => {
     };
   }, [showFilterDropdown]);
 
-  // Calculate employee dropdown position when it opens
-  useEffect(() => {
-    const updateEmployeePosition = () => {
-      if (showEmployeeDropdown && employeeButtonRef.current) {
-        const rect = employeeButtonRef.current.getBoundingClientRect();
-        setEmployeeDropdownPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width
-        });
-      }
-    };
-
-    if (showEmployeeDropdown) {
-      updateEmployeePosition();
-      // Update position on scroll and resize
-      window.addEventListener('scroll', updateEmployeePosition, true);
-      window.addEventListener('resize', updateEmployeePosition);
-    }
-
-    return () => {
-      window.removeEventListener('scroll', updateEmployeePosition, true);
-      window.removeEventListener('resize', updateEmployeePosition);
-    };
-  }, [showEmployeeDropdown]);
-
-  // Add click outside handler for employee dropdown
-  useEffect(() => {
-    function handleEmployeeClickOutside(event) {
-      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(event.target) &&
-          employeeButtonRef.current && !employeeButtonRef.current.contains(event.target)) {
-        setShowEmployeeDropdown(false);
-      }
-    }
-
-    // Add event listener when dropdown is open
-    if (showEmployeeDropdown) {
-      document.addEventListener("mousedown", handleEmployeeClickOutside);
-      // Also close on scroll
-      window.addEventListener("scroll", handleEmployeeClickOutside, true);
-    }
-    
-    // Clean up the event listener
-    return () => {
-      document.removeEventListener("mousedown", handleEmployeeClickOutside);
-      window.removeEventListener("scroll", handleEmployeeClickOutside, true);
-    };
-  }, [showEmployeeDropdown]);
+  // Employee filter change handler
+  const handleEmployeeChange = (employeeId) => {
+    setSelectedEmployeeId(employeeId);
+    setCurrentPage(1);
+  };
 
   // Add a function to highlight matched text
   const highlightText = (text, highlight) => {
@@ -1101,12 +1030,29 @@ const CallDetails = () => {
     );
   };
 
+  // Debounce function to delay API calls while typing
+  const debounce = useCallback((func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func(...args), delay);
+    };
+  }, []);
+
+  // Debounced search function - delays API call by 400ms after user stops typing
+  const debouncedSetSearchTerm = useMemo(
+    () => debounce((value) => {
+      setSearchTerm(value);
+      setCurrentPage(1); // Reset to page 1 when searching
+    }, 400),
+    [debounce]
+  );
+
   const handleSubmitCandidateWithHighlight = (e) => {
     const value = e.target.value;
-    setSearchTerm(value);
-    // Reset to page 1 when searching
-    setCurrentPage(1);
-    // Note: The useEffect will automatically trigger fetch when searchTerm changes
+    // Immediately update the input field value for user feedback
+    // But debounce the actual API search call
+    debouncedSetSearchTerm(value);
   };
 
   // Handle bulk mark data saved
@@ -1202,9 +1148,8 @@ const CallDetails = () => {
       setSelectedCandidates([]);
     } else {
       // Select all currently visible candidates
-      const visibleCandidates = filteredData
-        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-        .map(candidate => candidate._id);
+      // Note: filteredData already contains only current page's candidates (backend pagination)
+      const visibleCandidates = filteredData.map(candidate => candidate._id);
       setSelectedCandidates(visibleCandidates);
     }
     setSelectAll(!selectAll);
@@ -1227,9 +1172,8 @@ const CallDetails = () => {
 
   // Effect to update selectAll state when page changes
   useEffect(() => {
-    const visibleCandidates = filteredData
-      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-      .map(candidate => candidate._id);
+    // Note: filteredData already contains only current page's candidates (backend pagination)
+    const visibleCandidates = filteredData.map(candidate => candidate._id);
 
     // Check if all visible candidates are selected
     const allSelected = visibleCandidates.length > 0 && 
@@ -1696,117 +1640,57 @@ const CallDetails = () => {
                 </>
               )}
               
-              {/* Employee Filter Dropdown with Search (Admin Only) - Last Position */}
-              {isAdmin && (
-                <div className="w-full sm:w-auto md:w-auto sm:flex-none sm:min-w-[220px] relative">
-                  <button
-                    ref={employeeButtonRef}
-                    type="button"
-                    onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
-                    className="w-full px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 flex items-center justify-between"
-                  >
-                    <span className="truncate">
-                      {selectedEmployeeId 
-                        ? employees.find(emp => emp._id === selectedEmployeeId)?.name || "Select Employee"
-                        : "All Employees"}
-                    </span>
-                    <FaChevronRight 
-                      className={`ml-2 h-3 w-3 transition-transform ${showEmployeeDropdown ? 'rotate-90' : ''}`}
-                    />
-                  </button>
-                </div>
-              )}
+              {/* Employee Filter Dropdown (Admin Only) */}
+              <EmployeeFilterDropdown
+                isAdmin={isAdmin}
+                selectedEmployeeId={selectedEmployeeId}
+                onEmployeeChange={handleEmployeeChange}
+              />
               
-              {/* Employee Dropdown - Using Portal */}
-              {isAdmin && showEmployeeDropdown && createPortal(
-                <div 
-                  ref={employeeDropdownRef}
-                  className="fixed bg-white dark:bg-gray-800 rounded-md shadow-xl border border-gray-200 dark:border-gray-700"
-                  style={{
-                    top: `${employeeDropdownPosition.top}px`,
-                    left: `${employeeDropdownPosition.left}px`,
-                    width: `${employeeDropdownPosition.width || 220}px`,
-                    zIndex: 9999,
-                    maxHeight: '60vh',
-                  }}
-                >
-                  <div className="flex flex-col overflow-hidden">
-                    {/* Search Input */}
-                    <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-                      <input
-                        type="text"
-                        placeholder="Search employees"
-                        value={employeeSearchTerm}
-                        onChange={(e) => setEmployeeSearchTerm(e.target.value)}
-                        className="w-full px-2 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                    
-                    {/* Employee List */}
-                    <div 
-                      className="overflow-y-auto flex-1"
-                      style={{ 
-                        scrollBehavior: 'smooth',
-                        overscrollBehavior: 'contain',
-                        WebkitOverflowScrolling: 'touch',
-                        maxHeight: 'calc(60vh - 60px)'
-                      }}
-                      onWheel={(e) => {
-                        // Prevent scroll from propagating to parent
-                        e.stopPropagation();
-                      }}
+              {/* Pagination controls - in filter bar */}
+              {filteredData.length > 0 && displayTotalPages > 0 && (
+                <div className="w-full sm:w-auto sm:flex-none sm:ml-auto">
+                  <div className="flex items-center justify-center sm:justify-end space-x-1">
+                    <button
+                      onClick={goToPrevPage}
+                      disabled={currentPage === 1}
+                      className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md ${
+                        currentPage === 1
+                          ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                      }`}
                     >
+                      <FaChevronLeft className="h-3 w-3" />
+                    </button>
+                    
+                    {/* Page numbers */}
+                    {getPageNumbers().map((pageNum) => (
                       <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedEmployeeId("");
-                          setShowEmployeeDropdown(false);
-                          setEmployeeSearchTerm("");
-                          setCurrentPage(1);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                          selectedEmployeeId === "" ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white"
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md text-xs ${
+                          currentPage === pageNum
+                            ? 'bg-[#1a5d96] dark:bg-[#e2692c] text-white font-semibold'
+                            : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
                         }`}
                       >
-                        All Employees
+                        {pageNum}
                       </button>
-                      {employees
-                        .filter(employee => 
-                          employee.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
-                          employee.email.toLowerCase().includes(employeeSearchTerm.toLowerCase())
-                        )
-                        .map((employee) => (
-                          <button
-                            key={employee._id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedEmployeeId(employee._id);
-                              setShowEmployeeDropdown(false);
-                              setEmployeeSearchTerm("");
-                              setCurrentPage(1);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                              selectedEmployeeId === employee._id 
-                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
-                                : "text-gray-900 dark:text-white"
-                            }`}
-                          >
-                            {employee.name}
-                          </button>
-                        ))}
-                      {employees.filter(employee => 
-                        employee.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
-                        employee.email.toLowerCase().includes(employeeSearchTerm.toLowerCase())
-                      ).length === 0 && (
-                        <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-                          No employees found
-                        </div>
-                      )}
-                    </div>
+                    ))}
+                    
+                    <button
+                      onClick={goToNextPage}
+                      disabled={currentPage === displayTotalPages}
+                      className={`flex items-center justify-center p-1.5 h-8 w-8 rounded-md ${
+                        currentPage === displayTotalPages
+                          ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                      }`}
+                    >
+                      <FaChevronRight className="h-3 w-3" />
+                    </button>
                   </div>
-                </div>,
-                document.body
+                </div>
               )}
             </div>
           </div>
@@ -1861,99 +1745,6 @@ const CallDetails = () => {
               />
               </div>
               
-              {/* Pagination controls - at bottom of cards */}
-              {filteredData.length > 0 && displayTotalPages > 0 && (
-                <div className="flex justify-center items-center mt-6 mb-4 space-x-1 flex-wrap gap-1">
-                  {/* Previous Button */}
-                  <button
-                    onClick={goToPrevPage}
-                    disabled={currentPage === 1}
-                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md transition-colors ${
-                      currentPage === 1
-                        ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                        : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
-                    }`}
-                    title="Previous page"
-                  >
-                    <FaChevronLeft className="h-4 w-4" />
-                  </button>
-                  
-                  {/* First Page (if not in visible range) */}
-                  {displayTotalPages > 10 && getPageNumbers()[0] > 1 && (
-                    <>
-                      <button
-                        onClick={() => goToPage(1)}
-                        className={`flex items-center justify-center min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
-                          currentPage === 1
-                            ? 'bg-blue-600 dark:bg-blue-500 text-white'
-                            : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'
-                        }`}
-                        title="Go to page 1"
-                      >
-                        1
-                      </button>
-                      {getPageNumbers()[0] > 2 && (
-                        <span className="px-1 text-gray-500 dark:text-gray-400">...</span>
-                      )}
-                    </>
-                  )}
-                  
-                  {/* Page Numbers */}
-                  {getPageNumbers().map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      onClick={() => goToPage(pageNum)}
-                      className={`flex items-center justify-center min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
-                        currentPage === pageNum
-                          ? 'bg-blue-600 dark:bg-blue-500 text-white'
-                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'
-                      }`}
-                      title={`Go to page ${pageNum}`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-                  
-                  {/* Last Page (if not in visible range) */}
-                  {displayTotalPages > 10 && getPageNumbers()[getPageNumbers().length - 1] < displayTotalPages && (
-                    <>
-                      {getPageNumbers()[getPageNumbers().length - 1] < displayTotalPages - 1 && (
-                        <span className="px-1 text-gray-500 dark:text-gray-400">...</span>
-                      )}
-                      <button
-                        onClick={() => goToPage(displayTotalPages)}
-                        className={`flex items-center justify-center min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
-                          currentPage === displayTotalPages
-                            ? 'bg-blue-600 dark:bg-blue-500 text-white'
-                            : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'
-                        }`}
-                        title={`Go to page ${displayTotalPages}`}
-                      >
-                        {displayTotalPages}
-                      </button>
-                    </>
-                  )}
-                  
-                  {/* Next Button */}
-                  <button
-                    onClick={goToNextPage}
-                    disabled={currentPage === displayTotalPages}
-                    className={`flex items-center justify-center p-2 h-9 w-9 rounded-md transition-colors ${
-                      currentPage === displayTotalPages
-                        ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                        : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
-                    }`}
-                    title="Next page"
-                  >
-                    <FaChevronRight className="h-4 w-4" />
-                  </button>
-                  
-                  {/* Page Info */}
-                  <span className="text-sm text-gray-600 dark:text-gray-400 px-2 ml-1">
-                    ({currentPage} / {displayTotalPages})
-                  </span>
-                </div>
-              )}
             </>
           )}
         </>

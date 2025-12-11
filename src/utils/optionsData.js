@@ -460,6 +460,33 @@ export const joiningTypeOptions = [
   { value: "Mid-Lateral", label: "Mid-Lateral" },
 ];
 
+// Lineup status options (only 3 statuses for lineup page)
+export const lineupStatusOptions = [
+  {
+    value: "Scheduled",
+    label: "Scheduled",
+    colorClass: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+  },
+  {
+    value: "Rejected",
+    label: "Rejected",
+    colorClass: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+  },
+  {
+    value: "Joined",
+    label: "Joined",
+    colorClass: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  },
+];
+
+// Helper function to get lineup status color class
+export const getLineupStatusColorClass = (status) => {
+  const found = lineupStatusOptions.find((option) => option.value === status);
+  return found
+    ? found.colorClass
+    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
+};
+
 // Call Status options for filters
 export const callStatusOptions = [
   { value: "Call Back Requested", label: "Call Back Requested" },

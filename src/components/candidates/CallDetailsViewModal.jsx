@@ -57,6 +57,19 @@ const CallDetailsViewModal = ({ call, onClose, onTryCall }) => {
     };
   }, [onClose]);
 
+  // Helper function to check if a date is valid
+  const isValidDate = (date) => {
+    if (!date) return false;
+    const dateObj = new Date(date);
+    return dateObj instanceof Date && !isNaN(dateObj);
+  };
+
+  // Helper function to format date safely, returning "-" for invalid dates
+  const safeFormatDate = (date) => {
+    if (!isValidDate(date)) return "-";
+    return formatLongDate(date);
+  };
+
   // Helper function to get status color
   const getStatusColorClass = (status) => {
     switch(status) {
@@ -200,11 +213,11 @@ const formatCallHistory = (callDurationHistory) => {
     { label: "Data Saved", key: "dataSaved", value: call.dataSaved || "Not Specified" },
     { label: "Company JD", key: "jdReferenceCompany", value: call.jdReferenceCompany, show: () => call.jdReferenceCompany },
     { label: "JD Process", key: "jdReferenceProcess", value: call.jdReferenceProcess, show: () => call.jdReferenceProcess },
-    { label: "Walkin Date", key: "walkinDate", value: call.walkinDate ? formatLongDate(call.walkinDate) : "Not Specified", show: () => call.callStatus.toLowerCase() === "walkin at infidea" },
+    { label: "Walkin Date", key: "walkinDate", value: safeFormatDate(call.walkinDate), show: () => call.callStatus.toLowerCase() === "walkin at infidea" },
     { label: "Lineup Company", key: "lineupCompany", value: call.lineupCompany, show: () => call.callStatus.toLowerCase() === "lineup" },
     { label: "Lineup Process", key: "lineupProcess", value: call.lineupProcess, show: () => call.callStatus.toLowerCase() === "lineup" },
-    { label: "Lineup Date", key: "lineupDate", value: call.lineupDate ? formatLongDate(call.lineupDate) : "Not Specified", show: () => call.callStatus.toLowerCase() === "lineup" },
-    { label: "Interview Date", key: "interviewDate", value: call.interviewDate ? formatLongDate(call.interviewDate) : "Not Specified", show: () => call.callStatus.toLowerCase() === "lineup" },
+    { label: "Lineup Date", key: "lineupDate", value: safeFormatDate(call.lineupDate), show: () => call.callStatus.toLowerCase() === "lineup" },
+    { label: "Interview Date", key: "interviewDate", value: safeFormatDate(call.interviewDate), show: () => call.callStatus.toLowerCase() === "lineup" },
   ];
 
   return (

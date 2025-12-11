@@ -310,12 +310,18 @@ const EmployeeServices = {
       params.append('status', filters.status);
     }
     
-    // Add date range filters
+    // Add date range filters - send as YYYY-MM-DD format to avoid timezone issues
     if (filters.startDate) {
-      params.append('startDate', filters.startDate instanceof Date ? filters.startDate.toISOString() : filters.startDate);
+      const startDate = filters.startDate instanceof Date 
+        ? `${filters.startDate.getFullYear()}-${String(filters.startDate.getMonth() + 1).padStart(2, '0')}-${String(filters.startDate.getDate()).padStart(2, '0')}`
+        : filters.startDate;
+      params.append('startDate', startDate);
     }
     if (filters.endDate) {
-      params.append('endDate', filters.endDate instanceof Date ? filters.endDate.toISOString() : filters.endDate);
+      const endDate = filters.endDate instanceof Date 
+        ? `${filters.endDate.getFullYear()}-${String(filters.endDate.getMonth() + 1).padStart(2, '0')}-${String(filters.endDate.getDate()).padStart(2, '0')}`
+        : filters.endDate;
+      params.append('endDate', endDate);
     }
     if (filters.dateRangeType) {
       params.append('dateRangeType', filters.dateRangeType);
@@ -344,6 +350,23 @@ const EmployeeServices = {
 
   updateLineupData: async (lineupId, body) => {
     return requests.put(`/lineups/${lineupId}`, body);
+  },
+
+  // Lineup Remarks APIs
+  getLineupRemarks: async (lineupId) => {
+    return requests.get(`/lineups/${lineupId}/remarks`);
+  },
+
+  addLineupRemark: async (lineupId, remark) => {
+    return requests.post(`/lineups/${lineupId}/remarks`, { remark });
+  },
+
+  updateLineupRemark: async (lineupId, remarkId, remark) => {
+    return requests.put(`/lineups/${lineupId}/remarks/${remarkId}`, { remark });
+  },
+
+  deleteLineupRemark: async (lineupId, remarkId) => {
+    return requests.delete(`/lineups/${lineupId}/remarks/${remarkId}`);
   },
 
   createJoiningData: async (body) => {

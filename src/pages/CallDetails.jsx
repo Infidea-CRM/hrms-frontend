@@ -32,6 +32,7 @@ import {
   communicationOptions,
   shiftPreferenceOptions
 } from "@/utils/optionsData";
+import { copyMultipleCandidates } from "@/utils/copyUtils";
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
 
@@ -1107,38 +1108,13 @@ const CallDetails = () => {
     }
   };
 
-  // Add function to handle copying selected candidate data (same format as card copy button)
-  const handleCopySelectedNumbers = () => {
-    if (selectedCandidates.length === 0) {
-      toast.error("No candidates selected");
-      return;
-    }
-
-    // Get candidate data in the same format as card copy button (tab-separated: name, mobileNo, whatsappNo)
-    const candidatesData = selectedCandidates
-      .map(candidateId => {
-        const candidate = filteredData.find(c => c._id === candidateId);
-        if (!candidate) return null;
-        
-        const name = candidate?.name || '';
-        const mobileNo = candidate?.mobileNo || '';
-        const whatsappNo = candidate?.whatsappNo && candidate.whatsappNo !== "-" ? candidate.whatsappNo : '';
-        
-        // Tab-separated format for Excel (will paste into 3 columns)
-        return `${name}\t${mobileNo}\t${whatsappNo}`;
-      })
-      .filter(Boolean) // Remove any null values
-      .join('\n'); // Join with newline - each candidate on a new line
-
-    // Copy to clipboard
-    navigator.clipboard.writeText(candidatesData)
-      .then(() => {
-        toast.success(`${selectedCandidates.length} candidate${selectedCandidates.length !== 1 ? 's' : ''} copied to clipboard!`);
-      })
-      .catch(err => {
-        console.error('Failed to copy candidate data:', err);
-        toast.error("Failed to copy candidate data");
-      });
+  // Add function to handle copying selected candidate data (uses reusable utility)
+  const handleCopySelectedNumbers = async () => {
+    await copyMultipleCandidates(selectedCandidates, filteredData, {
+      nameField: 'name',
+      mobileField: 'mobileNo',
+      whatsappField: 'whatsappNo'
+    });
   };
 
   // Handle select all checkbox

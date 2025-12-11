@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
-import { FaPlus, FaSearch, FaTimesCircle, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { FaPlus, FaSearch, FaTimesCircle, FaChevronLeft, FaChevronRight, FaCopy } from "react-icons/fa";
 import { useLocation, useNavigate } from "react-router";
 import { formatLongDate } from "@/utils/dateFormatter";
+import { copyMultipleCandidates } from "@/utils/copyUtils";
 
 import NotFound from "@/components/table/NotFound";
 
@@ -19,12 +20,14 @@ import { notifySuccess, notifyError } from "@/utils/toast";
 import useError from "@/hooks/useError";
 import {
   statusOptions, 
+  lineupStatusOptions,
   companyOptions, 
   processOptions, 
   dateRangeTypeOptions, 
   resultsPerPageOptions, 
   joiningTypeOptions,
   getStatusColorClass,
+  getLineupStatusColorClass,
   getProcessesByCompany
 } from "@/utils/optionsData";
 
@@ -36,7 +39,6 @@ function Lineups() {
   const navigate = useNavigate();
   const [lineups, setLineups] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     candidateName: "",
@@ -53,7 +55,6 @@ function Lineups() {
     joiningRemarks: ""
   });
   const [formErrors, setFormErrors] = useState({});
-  const [selectedLineup, setSelectedLineup] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const DEFAULT_ITEMS_PER_PAGE = 10;
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
@@ -63,6 +64,16 @@ function Lineups() {
   const [minDate] = useState(new Date());
   const { handleErrorNotification } = useError();
 
+  // Remarks modal states
+  const [showRemarksModal, setShowRemarksModal] = useState(false);
+  const [remarksLineup, setRemarksLineup] = useState(null);
+  const [remarks, setRemarks] = useState([]);
+  const [newRemark, setNewRemark] = useState("");
+  const [editingRemarkId, setEditingRemarkId] = useState(null);
+  const [editingRemarkText, setEditingRemarkText] = useState("");
+  const [isLoadingRemarks, setIsLoadingRemarks] = useState(false);
+  const [isSubmittingRemark, setIsSubmittingRemark] = useState(false);
+
   // Add useEffect for Escape key handling
   useEffect(() => {
     const handleEscapeKey = (event) => {
@@ -71,9 +82,8 @@ function Lineups() {
         if (showForm) {
           handleCancel();
         }
-        if (showViewModal) {
-          setShowViewModal(false);
-          setSelectedLineup(null);
+        if (showRemarksModal) {
+          handleCloseRemarksModal();
         }
       }
     };
@@ -85,7 +95,7 @@ function Lineups() {
     return () => {
       document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [showForm, showViewModal]);
+  }, [showForm, showRemarksModal]);
 
   const { setIsUpdate } = useContext(SidebarContext);
   const { state } = useContext(AdminContext);
@@ -115,6 +125,10 @@ function Lineups() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
 
   const [isLoadingCandidateName, setIsLoadingCandidateName] = useState(false);
+
+  // Selection state for bulk copy
+  const [selectedLineups, setSelectedLineups] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   // Read query parameters when component mounts
   useEffect(() => {
@@ -319,7 +333,8 @@ function Lineups() {
   };
 
   // Use data directly from API (filtering is now handled by backend)
-  const filteredByStatus = dataTable || [];
+  // Don't use dataTable as it applies client-side filtering which conflicts with server-side filtering
+  const filteredByStatus = data?.lineups || [];
   
   // Use backend pagination totalPages
   const displayTotalPages = totalPages || 1;
@@ -337,7 +352,7 @@ function Lineups() {
 
 
   const getStatusColor = (status) => {
-    return getStatusColorClass(status);
+    return getLineupStatusColorClass(status);
   };
 
   const handleChange = (e) => {
@@ -486,15 +501,147 @@ function Lineups() {
     // Use the proper ID field from the API (_id for MongoDB, id for standard REST)
     setEditingId(lineup._id || lineup.id);
     setShowForm(true);
-    setShowViewModal(false); // Close view modal if open
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleView = (lineup) => {
-    setSelectedLineup(lineup);
-    setShowViewModal(true);
+  // Remarks handlers
+  const handleOpenRemarks = async (lineup) => {
+    setRemarksLineup(lineup);
+    setShowRemarksModal(true);
+    setIsLoadingRemarks(true);
+    
+    try {
+      const response = await EmployeeServices.getLineupRemarks(lineup._id);
+      setRemarks(response?.remarks || []);
+    } catch (error) {
+      console.error("Error fetching remarks:", error);
+      notifyError("Failed to load remarks");
+      setRemarks([]);
+    } finally {
+      setIsLoadingRemarks(false);
+    }
   };
 
+  const handleAddRemark = async () => {
+    if (!newRemark.trim()) {
+      notifyError("Please enter a remark");
+      return;
+    }
+
+    setIsSubmittingRemark(true);
+    try {
+      const response = await EmployeeServices.addLineupRemark(remarksLineup._id, newRemark.trim());
+      setRemarks(response?.remarks || []);
+      setNewRemark("");
+      notifySuccess("Remark added successfully");
+      // Refresh the lineup data to update the count
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error("Error adding remark:", error);
+      notifyError(error?.response?.data?.message || "Failed to add remark");
+    } finally {
+      setIsSubmittingRemark(false);
+    }
+  };
+
+  const handleUpdateRemark = async (remarkId) => {
+    if (!editingRemarkText.trim()) {
+      notifyError("Please enter a remark");
+      return;
+    }
+
+    setIsSubmittingRemark(true);
+    try {
+      const response = await EmployeeServices.updateLineupRemark(remarksLineup._id, remarkId, editingRemarkText.trim());
+      setRemarks(response?.remarks || []);
+      setEditingRemarkId(null);
+      setEditingRemarkText("");
+      notifySuccess("Remark updated successfully");
+    } catch (error) {
+      console.error("Error updating remark:", error);
+      notifyError(error?.response?.data?.message || "Failed to update remark");
+    } finally {
+      setIsSubmittingRemark(false);
+    }
+  };
+
+  const handleDeleteRemark = async (remarkId) => {
+    if (!window.confirm("Are you sure you want to delete this remark?")) {
+      return;
+    }
+
+    try {
+      const response = await EmployeeServices.deleteLineupRemark(remarksLineup._id, remarkId);
+      setRemarks(response?.remarks || []);
+      notifySuccess("Remark deleted successfully");
+      // Refresh the lineup data to update the count
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error("Error deleting remark:", error);
+      notifyError(error?.response?.data?.message || "Failed to delete remark");
+    }
+  };
+
+  const handleCloseRemarksModal = () => {
+    setShowRemarksModal(false);
+    setRemarksLineup(null);
+    setRemarks([]);
+    setNewRemark("");
+    setEditingRemarkId(null);
+    setEditingRemarkText("");
+  };
+
+  const startEditRemark = (remark) => {
+    setEditingRemarkId(remark._id);
+    setEditingRemarkText(remark.remark);
+  };
+
+  const cancelEditRemark = () => {
+    setEditingRemarkId(null);
+    setEditingRemarkText("");
+  };
+
+  // Handle status change from table dropdown
+  const handleStatusChange = async (lineup, newStatus) => {
+    if (newStatus === lineup.status) return;
+    
+    // If changing to "Joined", open the edit form to fill joining details
+    if (newStatus === "Joined") {
+      // Set form data with existing lineup data and new status
+      const lineupDate = lineup.lineupDate ? new Date(lineup.lineupDate).toISOString().split('T')[0] : '';
+      const interviewDate = lineup.interviewDate ? new Date(lineup.interviewDate) : '';
+      
+      setFormData({
+        candidateName: lineup.name || "",
+        contactNumber: lineup.contactNumber || "",
+        company: lineup.company || "",
+        customCompanyName: lineup.customCompany || "",
+        process: lineup.process || "",
+        customCompanyProcess: lineup.customProcess || "",
+        lineupDate: lineupDate,
+        interviewDate: interviewDate,
+        status: "Joined",
+        remarks: lineup.lineupRemarks || "",
+        joiningDate: "",
+        joiningType: "",
+        salary: "",
+        joiningRemarks: ""
+      });
+      setEditingId(lineup._id);
+      setShowForm(true);
+      notifySuccess("Please fill joining details to mark as Joined");
+      return;
+    }
+    
+    try {
+      await EmployeeServices.updateLineupData(lineup._id, { status: newStatus });
+      notifySuccess(`Status updated to ${newStatus}`);
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      notifyError(error?.response?.data?.message || "Failed to update status");
+    }
+  };
   
   const handleCancel = () => {
     setFormData({
@@ -527,46 +674,86 @@ function Lineups() {
     );
   };
 
+  // Handle select all for lineups
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedLineups([]);
+    } else {
+      const visibleIds = filteredByStatus.map(lineup => lineup._id);
+      setSelectedLineups(visibleIds);
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // Handle individual lineup selection
+  const handleLineupSelection = (lineupId, isSelected) => {
+    if (isSelected) {
+      setSelectedLineups(prev => {
+        const newSelected = [...prev, lineupId];
+        // Check if all visible lineups are now selected
+        const visibleIds = filteredByStatus.map(l => l._id);
+        if (visibleIds.every(id => newSelected.includes(id))) {
+          setSelectAll(true);
+        }
+        return newSelected;
+      });
+    } else {
+      setSelectedLineups(prev => prev.filter(id => id !== lineupId));
+      setSelectAll(false);
+    }
+  };
+
+  // Handle copy selected lineups
+  const handleCopySelectedLineups = async () => {
+    await copyMultipleCandidates(selectedLineups, filteredByStatus, {
+      nameField: 'name',
+      mobileField: 'contactNumber',
+      whatsappField: 'whatsappNo'
+    });
+  };
+
+  // Clear selection when page or data changes
+  useEffect(() => {
+    setSelectedLineups([]);
+    setSelectAll(false);
+  }, [currentPage, refreshKey]);
+
   // Add handling for search with highlighting
   const handleSubmitLineupWithHighlight = (e) => {
     handleSubmitLineups(e);
   };
 
   const renderTable = () => {
+    // Check if any filter is applied
+    const hasFilters = searchTerm || filters.status || dateRange.startDate || dateRange.endDate;
+    
     return (
       <>
-      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalLineups || filteredByStatus.length}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalLineups}</span>
 
       {loading ? (
         <TableLoading row={12} col={6} width={190} height={20} />
       ) : error ? (
         <span className="text-center mx-auto text-red-500">{error}</span>
-      ) : serviceData?.length !== 0 ? (
+      ) : filteredByStatus.length > 0 ? (
         <div className="mb-8 rounded-lg overflow-hidden shadow-md">
-          {filteredByStatus.length === 0 ? (
-            <div className="p-4 text-center text-gray-600 dark:text-gray-400">
-              <p>No calls match your filter criteria.</p>
-              <button
-                onClick={handleResetField}
-                className="mt-2 px-3 py-1.5 rounded-md text-sm bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
-              >
-                Reset Filters
-              </button>
-            </div>
-          ) : (
-            <LineupsTable 
-              lineups={filteredByStatus}
-              onView={handleView}
-              onEdit={handleEdit}
-              searchTerm={searchTerm || lineupsRef?.current?.value || ""}
-              highlightText={highlightText}
-              loading={loading}
-            />
-          )}
+          <LineupsTable 
+            lineups={filteredByStatus}
+            onEdit={handleEdit}
+            onRemarks={handleOpenRemarks}
+            onStatusChange={handleStatusChange}
+            searchTerm={searchTerm || lineupsRef?.current?.value || ""}
+            highlightText={highlightText}
+            loading={loading}
+            selectedLineups={selectedLineups}
+            onLineupSelection={handleLineupSelection}
+            selectAll={selectAll}
+            onSelectAll={handleSelectAll}
+          />
         </div>
-      ) : lineupsRef.current.value != ""||dateRange.startDate != null||dateRange.endDate != null && serviceData?.length === 0 ? (
+      ) : hasFilters ? (
         <div className="p-4 text-center text-gray-600 dark:text-gray-400">
-              <p>No calls match your filter criteria.</p>
+          <p>No lineups match your filter criteria.</p>
               <button
                 onClick={handleResetField}
                 className="mt-2 px-3 py-1.5 rounded-md text-sm bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
@@ -785,6 +972,19 @@ function Lineups() {
                 </button>
               </div>
               
+              {/* Copy Selected Lineups Button */}
+              {selectedLineups.length > 0 && (
+                <div className="flex-none">
+                  <button
+                    onClick={handleCopySelectedLineups}
+                    className="px-3 py-1.5 rounded-md text-xs bg-teal-600 hover:bg-teal-700 text-white flex items-center"
+                  >
+                    <FaCopy className="mr-1.5" />
+                    Copy {selectedLineups.length} candidate{selectedLineups.length !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              )}
+              
               <div className="w-full sm:w-auto sm:flex-none sm:min-w-[150px]">
                 <select
                   name="status"
@@ -793,7 +993,7 @@ function Lineups() {
                   className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                 >
                   <option value="">Select Status</option>
-                  {statusOptions.filter(option => option.value !== "").map((option, index) => (
+                  {lineupStatusOptions.map((option, index) => (
                     <option key={index} value={option.value}>
                       {option.label}
                     </option>
@@ -829,7 +1029,8 @@ function Lineups() {
                       showYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="Start Year"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[120px]">
@@ -843,7 +1044,8 @@ function Lineups() {
                       showYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="End Year"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                 </>
@@ -860,7 +1062,8 @@ function Lineups() {
                       showMonthYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="Start Month"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
@@ -874,7 +1077,8 @@ function Lineups() {
                       showMonthYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="End Month"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                 </>
@@ -890,7 +1094,8 @@ function Lineups() {
                       dateFormat="dd-MMM-yyyy"
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="Start Date"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
@@ -903,7 +1108,8 @@ function Lineups() {
                       dateFormat="dd-MMM-yyyy"
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="End Date"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                 </>
@@ -1211,7 +1417,8 @@ function Lineups() {
                   dark:bg-gray-700 border-gray-600 dark:text-white bg-white border-gray-300 text-gray-900 px-3 py-2
                   ${formErrors.status ? 'border-red-500 dark:border-red-500' : ''}`}
                 >
-                  {statusOptions.map((option, index) => (
+                  <option value="">Select Status</option>
+                  {lineupStatusOptions.map((option, index) => (
                     <option key={index} value={option.value}>
                       {option.label}
                     </option>
@@ -1369,157 +1576,149 @@ function Lineups() {
       </div>
     )}
 
-    {/* View Modal */}
-    {showViewModal && selectedLineup && (
+    {/* Remarks Modal */}
+    {showRemarksModal && remarksLineup && (
       <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
-        <div className="relative max-w-2xl mx-auto p-5 rounded-xl shadow-lg bg-white dark:bg-gray-800 w-full m-4">
-          {/* Header with Candidate Details and Close Button aligned */}
-          <div className="flex items-center justify-between mb-4">
+        <div className="relative max-w-2xl mx-auto p-5 rounded-xl shadow-lg bg-white dark:bg-gray-800 w-full m-4 max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <div>
             <h2 className="text-xl font-bold dark:text-[#e2692c] text-[#1a5d96]">
-              {selectedLineup.name}
+                Remarks
             </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {remarksLineup?.name} - {remarksLineup?.company}
+              </p>
+            </div>
             <button 
-              onClick={() => setShowViewModal(false)} 
+              onClick={handleCloseRemarksModal} 
               className="dark:text-gray-300 dark:hover:text-white text-gray-600 hover:text-gray-900 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full p-2 transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
               </svg>
             </button>
           </div>
           
-          {/* Status Badge at the top */}
-          <div className="mb-4 flex items-center">
-            <span className="text-sm font-medium dark:text-gray-300 text-gray-600 mr-3">Status:</span>
-            <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedLineup.status)}`}>
-              {statusOptions.find(o => o.value === selectedLineup.status)?.label || selectedLineup.status}
-            </span>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Candidate Information */}
-            <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 shadow-sm">
-              <h3 className="text-md font-semibold mb-3 dark:text-[#e2692c] text-[#1a5d96] border-b pb-2 dark:border-gray-600 border-gray-200">
-                <svg className="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                </svg>
-                Candidate Information
-              </h3>
-              <dl className="space-y-2 text-sm">
-                <div className="grid grid-cols-3">
-                  <dt className="col-span-1 font-medium dark:text-gray-400 text-gray-500">Contact</dt>
-                  <dd className="col-span-2 font-semibold dark:text-white text-gray-900">
-                    {selectedLineup.contactNumber}
-                  </dd>
-                </div>
-                <div className="grid grid-cols-3">
-                  <dt className="col-span-1 font-medium dark:text-gray-400 text-gray-500">Company</dt>
-                  <dd className="col-span-2 font-semibold dark:text-white text-gray-900">
-                    {companyOptions.find(o => o.value === selectedLineup.company)?.label || selectedLineup.company}
-                  </dd>
-                </div>
-                <div className="grid grid-cols-3">
-                  <dt className="col-span-1 font-medium dark:text-gray-400 text-gray-500">Process</dt>
-                  <dd className="col-span-2 font-semibold dark:text-white text-gray-900">
-                    {processOptions.find(o => o.value === selectedLineup.process)?.label || selectedLineup.process}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-            
-            {/* Timeline Information */}
-            <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 shadow-sm">
-              <h3 className="text-md font-semibold mb-3 dark:text-[#e2692c] text-[#1a5d96] border-b pb-2 dark:border-gray-600 border-gray-200">
-                <svg className="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                Timeline Details
-              </h3>
-              <dl className="space-y-2 text-sm">
-                <div className="grid grid-cols-3">
-                  <dt className="col-span-1 font-medium dark:text-gray-400 text-gray-500">Lineup Date</dt>
-                  <dd className="col-span-2 font-semibold dark:text-white text-gray-900">
-                    {selectedLineup.lineupDate ? new Date(selectedLineup.lineupDate).toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    }) : "Not specified"}
-                  </dd>
-                </div>
-                <div className="grid grid-cols-3">
-                  <dt className="col-span-1 font-medium dark:text-gray-400 text-gray-500">Interview Date</dt>
-                  <dd className="col-span-2 font-semibold dark:text-white text-gray-900">
-                    {selectedLineup.interviewDate ? new Date(selectedLineup.interviewDate).toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    }) : "Not specified"}
-                  </dd>
-                </div>
-                {selectedLineup.status?.toLowerCase() === "joined" && (
-                  <div className="grid grid-cols-3">
-                    <dt className="col-span-1 font-medium dark:text-gray-400 text-gray-500">Joining Date</dt>
-                    <dd className="col-span-2 font-semibold dark:text-white text-gray-900">
-                      { formatLongDate(selectedLineup.joining.joiningDate) || "Not specified"}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-          </div>
-          
-          {/* Joining Details */}
-          {selectedLineup.status?.toLowerCase() === "joined" && (
-            <div className="mt-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/30 shadow-sm">
-              <h3 className="text-md font-semibold mb-3 text-green-700 dark:text-green-400 border-b pb-2 border-green-200 dark:border-green-800/30">
-                <svg className="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Joining Details
-              </h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="font-medium text-gray-500 dark:text-gray-400 block mb-1">Joining Type</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">{selectedLineup.joining.joiningType || "Not specified"}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-500 dark:text-gray-400 block mb-1">Salary</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">₹{selectedLineup.joining.salary || "Not specified"}</span>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Remarks Section - Only when available */}
-          {selectedLineup.lineupRemarks && (
-            <div className="mt-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 shadow-sm">
-              <h3 className="text-md font-semibold mb-2 dark:text-[#e2692c] text-[#1a5d96] border-b pb-2 dark:border-gray-600 border-gray-200">
-                <svg className="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
-                </svg>
-                Remarks
-              </h3>
-              <p className="text-sm dark:text-gray-300 text-gray-700 mt-2">
-                {selectedLineup.lineupRemarks || "No remarks provided."}
-              </p>
-            </div>
-          )}
-
-          <div className="mt-4 flex justify-end space-x-3">
-            {selectedLineup.editable && (
+          {/* Add New Remark */}
+          <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg flex-shrink-0">
+            <label className="block text-sm font-medium dark:text-gray-300 text-gray-700 mb-2">
+              Add New Remark
+            </label>
+            <div className="flex gap-2">
+              <textarea
+                value={newRemark}
+                onChange={(e) => setNewRemark(e.target.value)}
+                placeholder="Enter your remark..."
+                rows="2"
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
               <button
-                onClick={() => {
-                  handleEdit(selectedLineup);
-                  setShowViewModal(false);
-                }}
-                className="px-3 py-1.5 text-sm rounded-lg font-medium dark:bg-[#e2692c] dark:hover:bg-[#d15a20] text-white bg-[#1a5d96] hover:bg-[#154a7a] transition-colors"
+                onClick={handleAddRemark}
+                disabled={isSubmittingRemark || !newRemark.trim()}
+                className="px-4 py-2 bg-[#1a5d96] dark:bg-[#e2692c] hover:bg-[#154a7a] dark:hover:bg-[#d15a20] text-white rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed self-end"
               >
-                Edit
+                {isSubmittingRemark ? "Adding..." : "Add"}
               </button>
-            )}
-            <button
-              onClick={() => setShowViewModal(false)}
-              className="px-3 py-1.5 text-sm rounded-lg font-medium dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-white bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
+            </div>
+          </div>
+          
+          {/* Remarks List */}
+          <div className="flex-1 overflow-y-auto">
+            {isLoadingRemarks ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a5d96] dark:border-[#e2692c]"></div>
+              </div>
+            ) : remarks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                </svg>
+                <p>No remarks yet. Add the first one!</p>
+                </div>
+            ) : (
+              <div className="space-y-3">
+                {remarks.map((remark) => (
+                  <div key={remark._id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    {editingRemarkId === remark._id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editingRemarkText}
+                          onChange={(e) => setEditingRemarkText(e.target.value)}
+                          rows="2"
+                          className="w-full px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={cancelEditRemark}
+                            className="px-3 py-1 text-xs rounded-md bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleUpdateRemark(remark._id)}
+                            disabled={isSubmittingRemark}
+                            className="px-3 py-1 text-xs rounded-md bg-[#1a5d96] dark:bg-[#e2692c] hover:bg-[#154a7a] dark:hover:bg-[#d15a20] text-white disabled:opacity-50"
+                          >
+                            {isSubmittingRemark ? "Saving..." : "Save"}
+                          </button>
+                </div>
+                </div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-gray-800 dark:text-gray-200 mb-2">
+                          {remark.remark}
+                        </p>
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[#1a5d96] dark:text-[#e2692c]">
+                              {remark.addedBy?.name?.en || remark.addedBy?.name || "Unknown"}
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {new Date(remark.addedAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+            </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => startEditRemark(remark)}
+                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="Edit"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRemark(remark._id)}
+                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                              title="Delete"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                              </svg>
+                            </button>
+                </div>
+                </div>
+                      </>
+                    )}
+            </div>
+                ))}
+            </div>
+          )}
+            </div>
+
+          {/* Footer */}
+          <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end flex-shrink-0">
+              <button
+              onClick={handleCloseRemarksModal}
+              className="px-4 py-2 text-sm rounded-lg font-medium dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-white bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
             >
               Close
             </button>

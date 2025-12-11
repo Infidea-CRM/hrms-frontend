@@ -1,15 +1,14 @@
-import { FaEdit, FaPhoneAlt, FaWhatsapp, FaUnlock, FaBookmark } from "react-icons/fa";
+import {  FaPhoneAlt, FaWhatsapp, FaUnlock, FaBookmark } from "react-icons/fa";
 import { MdInfo, MdLocationOn, MdWork, MdSchool, MdAccessTime } from "react-icons/md";
 import { CopyOutlined } from "@ant-design/icons";
 import { formatLongDateAndTime } from "@/utils/dateFormatter";
 import { getStatusColorClass } from "@/utils/optionsData";
-import { notifySuccess } from "@/utils/toast";
+import { copySingleCandidate } from "@/utils/copyUtils";
 import "./CandidatesCard.css";
 
 const CandidatesCard = ({
   candidates,
   onView,
-  onEdit,
   searchTerm = "",
   highlightText,
   selectedCandidates = [],
@@ -98,22 +97,13 @@ const CandidatesCard = ({
     return "No summary";
   };
 
-  // Copy candidate name, phone number, and WhatsApp number to clipboard (Excel format - tab separated)
+  // Copy candidate name, phone number, and WhatsApp number to clipboard (uses reusable utility)
   const handleCopyCandidateData = (e, candidate) => {
-    e.stopPropagation();
-    
-    const name = candidate?.name || '';
-    const mobileNo = candidate?.mobileNo || '';
-    const whatsappNo = candidate?.whatsappNo && candidate.whatsappNo !== "-" ? candidate.whatsappNo : '';
-    
-    // Tab-separated format for Excel (will paste into 3 columns)
-    const dataToCopy = `${name}\t${mobileNo}\t${whatsappNo}`;
-    
-    navigator.clipboard.writeText(dataToCopy).then(() => {
-      notifySuccess("Copied to clipboard!");
-    }).catch((err) => {
-      console.error("Failed to copy:", err);
-    });
+    copySingleCandidate(candidate, {
+      nameField: 'name',
+      mobileField: 'mobileNo',
+      whatsappField: 'whatsappNo'
+    }, e);
   };
 
   // Get initials from name
@@ -156,16 +146,6 @@ const CandidatesCard = ({
     const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30));
     return diffMonths;
   };
-
-  // Format "Modified in last X months" or "Active in last X months"
-  const formatMonthsAgo = (date, prefix = "Modified") => {
-    const months = getMonthsAgo(date);
-    if (months === null) return null;
-    if (months === 0) return `${prefix} today`;
-    if (months === 1) return `${prefix} in last month`;
-    return `${prefix} in last ${months} months`;
-  };
-
 
 
   return (

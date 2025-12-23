@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useContext } from "react";
-import { FaPlus, FaSearch, FaTimesCircle,FaChevronLeft,FaChevronRight } from "react-icons/fa";
-import {
-  Table,
-  TableCell,
-  TableContainer,
-  TableHeader,
-} from "@windmill/react-ui";
+import { FaPlus, FaSearch, FaTimesCircle, FaChevronLeft, FaChevronRight, FaCopy } from "react-icons/fa";
+import { copyMultipleCandidates } from "@/utils/copyUtils";
 
 import NotFound from "@/components/table/NotFound";
 
@@ -16,12 +11,15 @@ import { SidebarContext } from "@/context/SidebarContext";
 import { AdminContext } from "@/context/AdminContext";
 import TableLoading from "@/components/preloader/TableLoading";
 import AnimatedContent from "@/components/common/AnimatedContent";
+import EmployeeFilterDropdown from "@/components/common/EmployeeFilterDropdown";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { notifySuccess, notifyError } from "@/utils/toast";
 import {
   dateRangeTypeOptions,
   resultsPerPageOptions,
+  walkinStatusOptions,
+  getWalkinStatusColorClass,
 } from "@/utils/optionsData";
 import useError from "@/hooks/useError";
 
@@ -30,20 +28,14 @@ import useError from "@/hooks/useError";
 function Walkins() {
   const [walkins, setWalkins] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     candidateName: "",
     contactNumber: "",
-    company: "",
-    process: "",
     walkinDate: "",
-    interviewDate: "",
-    status: "",
-    remarks: ""
+    walkinRemarks: ""
   });
   const [formErrors, setFormErrors] = useState({});
-  const [selectedWalkin, setSelectedWalkin] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const DEFAULT_ITEMS_PER_PAGE = 10;
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
@@ -51,7 +43,6 @@ function Walkins() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [minDate] = useState(new Date());
   const [isLoadingCandidateName, setIsLoadingCandidateName] = useState(false);
-
 
   const { setIsUpdate } = useContext(SidebarContext);
   const { state } = useContext(AdminContext);
@@ -70,9 +61,17 @@ function Walkins() {
 
   // Add filter state
   const [filters, setFilters] = useState({
+    status: "",
     name: "",
     contactNumber: ""
   });
+
+  // Employee filter state (for admin only) - supports multiple employee IDs
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+
+  // Selection state for bulk copy
+  const [selectedWalkins, setSelectedWalkins] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   // Add useEffect for Escape key handling
   useEffect(() => {
@@ -81,10 +80,6 @@ function Walkins() {
         // Close any open modals
         if (showForm) {
           handleCancel();
-        }
-        if (showViewModal) {
-          setShowViewModal(false);
-          setSelectedWalkin(null);
         }
       }
     };
@@ -96,31 +91,9 @@ function Walkins() {
     return () => {
       document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [showForm, showViewModal]);
+  }, [showForm]);
 
   const { handleErrorNotification } = useError();
-
-  // Fetch walkins data with pagination and search
-  useEffect(() => {
-    const fetchWalkins = async () => {
-      try {
-        setLoading(true);
-        const response = await EmployeeServices.getWalkinsData(currentPage, itemsPerPage, searchTerm);
-        setApiData(response);
-        setTotalWalkins(response?.totalWalkins || 0);
-        setTotalPages(response?.totalPages || 0);
-        setError("");
-      } catch (err) {
-        setError(err.message || "Failed to fetch walkins");
-        setApiData(null);
-        handleErrorNotification(err, "Walkins");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWalkins();
-  }, [currentPage, itemsPerPage, refreshKey, searchTerm]);
 
   // Map API response to match expected format
   const data = apiData ? { walkins: apiData.walkins || [] } : null;
@@ -142,6 +115,43 @@ function Walkins() {
     setDateRange
   } = useFilter(data?.walkins);
 
+  // Fetch walkins data with pagination, search, and filters
+  useEffect(() => {
+    const fetchWalkins = async () => {
+      try {
+        setLoading(true);
+        
+        // Build filters object for API
+        const apiFilters = {
+          status: filters.status || "",
+          startDate: dateRange.startDate || null,
+          endDate: dateRange.endDate || null,
+          dateRangeType: dateRangeType || "day"
+        };
+        
+        const response = await EmployeeServices.getWalkinsData(
+          currentPage, 
+          itemsPerPage, 
+          searchTerm, 
+          apiFilters,
+          selectedEmployeeIds
+        );
+        setApiData(response);
+        setTotalWalkins(response?.totalWalkins || 0);
+        setTotalPages(response?.totalPages || 0);
+        setError("");
+      } catch (err) {
+        setError(err.message || "Failed to fetch walkins");
+        setApiData(null);
+        handleErrorNotification(err, "Walkins");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWalkins();
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters.status, dateRange.startDate, dateRange.endDate, dateRangeType, selectedEmployeeIds]);
+
 
   const handleResetField = () => {
     if (walkinsRef && walkinsRef.current) {
@@ -158,10 +168,38 @@ function Walkins() {
       name: "",
       contactNumber: "",
     });
+    setSelectedEmployeeIds([]); // Reset employee filter
     setItemsPerPage(DEFAULT_ITEMS_PER_PAGE);
     setCurrentPage(1);
     // Force a refresh
     setRefreshKey(prev => prev + 1);
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
+  // Handler for employee filter change (multi-select)
+  const handleEmployeeChange = (employeeIds) => {
+    setSelectedEmployeeIds(employeeIds);
+    setCurrentPage(1); // Reset to first page when employee filter changes
+  };
+
+  // Wrapper for date range change to also reset page
+  const handleDateRangeChangeWithReset = (startDate, endDate) => {
+    handleDateRangeChange(startDate, endDate);
+    setCurrentPage(1);
+  };
+
+  // Wrapper for date range type change to also reset page
+  const handleDateRangeTypeChangeWithReset = (type) => {
+    handleDateRangeTypeChange(type);
+    setCurrentPage(1);
   };
 
 
@@ -214,17 +252,12 @@ function Walkins() {
     return pages;
   };
 
-  // Calculate total pages - this is just a mock implementation
-  const filteredByStatus = filters.status
-    ? (dataTable || []).filter(c => {
-        // Make comparison case-insensitive and trim whitespace
-        return c.status && 
-               c.status.toLowerCase().trim() === filters.status.toLowerCase().trim();
-      })
-    : (dataTable || []);
+  // Use data directly from API (filtering is now handled by backend)
+  // Don't use dataTable as it applies client-side filtering which conflicts with server-side filtering
+  const filteredByStatus = data?.walkins || [];
   
-  // Use backend pagination totalPages, but fallback to client-side calculation for filtered data
-  const displayTotalPages = totalPages || Math.ceil(filteredByStatus.length / itemsPerPage);
+  // Use backend pagination totalPages
+  const displayTotalPages = totalPages || 1;
 
   // Toggle sort order when header is clicked
   const handleSortByField = (field) => {
@@ -330,14 +363,66 @@ function Walkins() {
     // Use the proper ID field from the API (_id for MongoDB, id for standard REST)
     setEditingId(walkin._id || walkin.id);
     setShowForm(true);
-    setShowViewModal(false); // Close view modal if open
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleView = (walkin) => {
-    setSelectedWalkin(walkin);
-    setShowViewModal(true);
+  // Handle status change from table dropdown
+  const handleStatusChange = async (walkin, newStatus) => {
+    if (newStatus === walkin.status) return;
+    
+    try {
+      await EmployeeServices.updateWalkinData(walkin._id, { status: newStatus });
+      notifySuccess(`Status updated to ${newStatus}`);
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      notifyError(error?.response?.data?.message || "Failed to update status");
+    }
   };
+
+  // Handle select all for walkins
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedWalkins([]);
+    } else {
+      const visibleIds = filteredByStatus.map(walkin => walkin._id);
+      setSelectedWalkins(visibleIds);
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // Handle individual walkin selection
+  const handleWalkinSelection = (walkinId, isSelected) => {
+    if (isSelected) {
+      setSelectedWalkins(prev => {
+        const newSelected = [...prev, walkinId];
+        // Check if all visible walkins are now selected
+        const visibleIds = filteredByStatus.map(w => w._id);
+        if (visibleIds.every(id => newSelected.includes(id))) {
+          setSelectAll(true);
+        }
+        return newSelected;
+      });
+    } else {
+      setSelectedWalkins(prev => prev.filter(id => id !== walkinId));
+      setSelectAll(false);
+    }
+  };
+
+  // Handle copy selected walkins
+  const handleCopySelectedWalkins = async () => {
+    await copyMultipleCandidates(selectedWalkins, filteredByStatus, {
+      nameField: 'candidateName',
+      mobileField: 'contactNumber',
+      whatsappField: 'whatsappNo'
+    });
+  };
+
+  // Clear selection when page or data changes
+  useEffect(() => {
+    setSelectedWalkins([]);
+    setSelectAll(false);
+  }, [currentPage, refreshKey]);
 
   
   const handleCancel = () => {
@@ -371,79 +456,35 @@ function Walkins() {
   };
 
   const renderTable = () => {
+    // Check if any filter is applied
+    const hasFilters = searchTerm || filters.status || dateRange.startDate || dateRange.endDate;
+    
     return (
       <>
-      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalWalkins || filteredByStatus.length}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-400 mb-1"> Total Records Found : {totalWalkins}</span>
 
       {loading ? (
-        // <Loading loading={loading} />
         <TableLoading row={12} col={6} width={190} height={20} />
       ) : error ? (
         <span className="text-center mx-auto text-red-500">{error}</span>
-      ) : serviceData?.length !== 0 ? (
-        <TableContainer className="mb-8">
-          
-          {filteredByStatus.length === 0 ? (
-            <div className="p-4 text-center text-gray-600 dark:text-gray-400">
-              <p>No calls match your filter criteria.</p>
-              <button
-                onClick={handleResetField}
-                className="mt-2 px-3 py-1.5 rounded-md text-sm bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
-              >
-                Reset Filters
-              </button>
-            </div>
-          ) : 
-          (
-            <Table>
-              <TableHeader > 
-                <tr className="h-14 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300 ">
-                <TableCell className="text-center">
-                  Actions
-                  </TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("entrytime")}>Entry Date {sortBy === "entrytime" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("updatedate")}>Updated Date {sortBy === "updatedate" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-          
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("name")}>Name {sortBy === "name" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("contactNumber")}>Contact Number{sortBy === "contactNumber" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-        
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("createdBy")}>Registered By {sortBy === "createdBy" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-        
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("walkinDate")}>Walkin Date {sortBy === "walkinDate" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-              
-                  <TableCell className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => handleSortByField("status")}>Status{sortBy === "status" && (
-                    <span className="ml-2 text-gray-500">{sortOrder === "asc" ? "▲" : "▼"}</span>
-                  )}</TableCell>
-                  
-                </tr>
-              </TableHeader>
-
+      ) : filteredByStatus.length > 0 ? (
+        <div className="mb-8 rounded-lg overflow-hidden shadow-md">
               <WalkinsTable 
                 walkins={filteredByStatus}
-                onView={handleView}
                 onEdit={handleEdit}
+            onStatusChange={handleStatusChange}
                 searchTerm={searchTerm || walkinsRef?.current?.value || ""}
                 highlightText={highlightText}
-              />
-            </Table>
-          )}
-        </TableContainer>
-      ) : walkinsRef.current.value != ""||dateRange.startDate != null||dateRange.endDate != null && serviceData?.length === 0 ? (
+            loading={loading}
+            selectedWalkins={selectedWalkins}
+            onWalkinSelection={handleWalkinSelection}
+            selectAll={selectAll}
+            onSelectAll={handleSelectAll}
+          />
+        </div>
+      ) : hasFilters ? (
         <div className="p-4 text-center text-gray-600 dark:text-gray-400">
-              <p>No calls match your filter criteria.</p>
+          <p>No walkins match your filter criteria.</p>
               <button
                 onClick={handleResetField}
                 className="mt-2 px-3 py-1.5 rounded-md text-sm bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
@@ -584,11 +625,40 @@ function Walkins() {
                 </button>
               </div>
               
+              {/* Copy Selected Walkins Button */}
+              {selectedWalkins.length > 0 && (
+                <div className="flex-none">
+                  <button
+                    onClick={handleCopySelectedWalkins}
+                    className="px-3 py-1.5 rounded-md text-xs bg-teal-600 hover:bg-teal-700 text-white flex items-center"
+                  >
+                    <FaCopy className="mr-1.5" />
+                    Copy {selectedWalkins.length} candidate{selectedWalkins.length !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              )}
+              
+              {/* Status Filter */}
+              <div className="w-full sm:w-auto sm:flex-none sm:min-w-[150px]">
+                <select
+                  name="status"
+                  value={filters.status}
+                  onChange={(e) => handleFilterChange(e)}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
+                >
+                  <option value="">Select Status</option>
+                  {walkinStatusOptions && walkinStatusOptions.map((option, index) => (
+                    <option key={index} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               
               <div className="w-full sm:w-auto sm:flex-none sm:min-w-[120px]">
                 <select 
                   value={dateRangeType}
-                  onChange={(e) => handleDateRangeTypeChange(e.target.value)}
+                  onChange={(e) => handleDateRangeTypeChangeWithReset(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                 >
                   {dateRangeTypeOptions.map(option => (
@@ -605,7 +675,7 @@ function Walkins() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[120px]">
                     <DatePicker
                       selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
+                      onChange={(date) => handleDateRangeChangeWithReset(date, dateRange.endDate)}
                       selectsStart
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -613,13 +683,14 @@ function Walkins() {
                       showYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="Start Year"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[120px]">
                     <DatePicker
                       selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
+                      onChange={(date) => handleDateRangeChangeWithReset(dateRange.startDate, date)}
                       selectsEnd
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -627,7 +698,8 @@ function Walkins() {
                       showYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="End Year"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                 </>
@@ -636,7 +708,7 @@ function Walkins() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
+                      onChange={(date) => handleDateRangeChangeWithReset(date, dateRange.endDate)}
                       selectsStart
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -644,13 +716,14 @@ function Walkins() {
                       showMonthYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="Start Month"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
+                      onChange={(date) => handleDateRangeChangeWithReset(dateRange.startDate, date)}
                       selectsEnd
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
@@ -658,7 +731,8 @@ function Walkins() {
                       showMonthYearPicker
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="End Month"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                 </>
@@ -667,31 +741,40 @@ function Walkins() {
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.startDate}
-                      onChange={(date) => handleDateRangeChange(date, dateRange.endDate)}
+                      onChange={(date) => handleDateRangeChangeWithReset(date, dateRange.endDate)}
                       selectsStart
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
                       dateFormat="dd-MMM-yyyy"
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="Start Date"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                   <div className="w-full sm:w-auto sm:flex-none sm:min-w-[130px]">
                     <DatePicker
                       selected={dateRange.endDate}
-                      onChange={(date) => handleDateRangeChange(dateRange.startDate, date)}
+                      onChange={(date) => handleDateRangeChangeWithReset(dateRange.startDate, date)}
                       selectsEnd
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
                       dateFormat="dd-MMM-yyyy"
                       className="w-full px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1"
                       placeholderText="End Date"
-                      popperClassName="z-50"
+                      popperClassName="!z-[9999]"
+                      portalId="root"
                     />
                   </div>
                 </>
               )}
+              
+              {/* Employee Filter Dropdown (Admin Only) */}
+              <EmployeeFilterDropdown
+                isAdmin={isAdmin}
+                selectedEmployeeIds={selectedEmployeeIds}
+                onEmployeeChange={handleEmployeeChange}
+              />
               
               {/* Items per page selector */}
               <div className="w-full sm:w-auto sm:flex-none sm:min-w-[100px]">
@@ -908,97 +991,6 @@ function Walkins() {
               </button>
             </div>
           </form>
-        </div>
-      </div>
-    )}
-
-    {/* View Modal */}
-    {showViewModal && selectedWalkin && (
-      <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
-        <div className="relative max-w-2xl mx-auto p-6 rounded-xl shadow-lg bg-white dark:bg-gray-800 w-full m-4">
-          {/* Header with Candidate Details and Close Button aligned */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold dark:text-[#e2692c] text-[#1a5d96]">
-              Candidate Details
-            </h2>
-            <button 
-              onClick={() => setShowViewModal(false)} 
-              className="dark:text-gray-300 dark:hover:text-white text-gray-600 hover:text-gray-900 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full p-2"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg dark:bg-gray-700 bg-gray-100">
-              <h3 className="text-lg font-semibold mb-2 dark:text-[#e2692c] text-[#1a5d96]">
-                Basic Information
-              </h3>
-              <dl className="space-y-2">
-                <div className="flex flex-col">
-                  <dt className="text-sm dark:text-gray-400 text-gray-500">Name</dt>
-                  <dd className="text-base font-medium dark:text-white text-gray-900">
-                    {selectedWalkin.candidateName}
-                  </dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-sm dark:text-gray-400 text-gray-500">Contact Number</dt>
-                  <dd className="text-base font-medium dark:text-white text-gray-900">
-                    {selectedWalkin.contactNumber}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-            
-            <div className="p-4 rounded-lg dark:bg-gray-700 bg-gray-100">
-              <h3 className="text-lg font-semibold mb-2 dark:text-[#e2692c] text-[#1a5d96]">
-                Process Details
-              </h3>
-              <dl className="space-y-2">
-                <div className="flex flex-col">
-                  <dt className="text-sm dark:text-gray-400 text-gray-500">Walkin Date</dt>
-                  <dd className="text-base font-medium dark:text-white text-gray-900">
-                    {selectedWalkin.walkinDate ? new Date(selectedWalkin.walkinDate).toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    }) : "Not specified"}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-
-          <div className="mt-4 p-4 rounded-lg dark:bg-gray-700 bg-gray-100">
-            <h3 className="text-lg font-semibold mb-2 dark:text-[#e2692c] text-[#1a5d96]">
-              Walkin Remarks
-            </h3>
-            <p className="text-base font-medium dark:text-white text-gray-900">
-              {selectedWalkin.walkinRemarks}
-            </p>
-          </div>
-          
-          <div className="mt-4 flex justify-end space-x-3">
-            {selectedWalkin.editable && (
-              <button
-                onClick={() => {
-                  handleEdit(selectedWalkin);
-                  setShowViewModal(false);
-                }}
-                className="px-3 py-1.5 text-sm rounded-lg font-medium dark:bg-[#e2692c] dark:hover:bg-[#d15a20] text-white bg-[#1a5d96] hover:bg-[#154a7a] transition-colors"
-              >
-                Edit
-              </button>
-            )}
-            <button
-              onClick={() => setShowViewModal(false)}
-              className="px-3 py-1.5 text-sm rounded-lg font-medium dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-white bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
-            >
-              Close
-            </button>
-          </div>
         </div>
       </div>
     )}

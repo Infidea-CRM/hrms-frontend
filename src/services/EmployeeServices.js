@@ -192,7 +192,7 @@ const EmployeeServices = {
     return requests.post("/candidates/create", body);
   },
 
-  getCandidatesData: async (page = 1, limit = 10, search = "", filters = {}, dateRange = {}, employeeId = null) => {
+  getCandidatesData: async (page = 1, limit = 10, search = "", filters = {}, dateRange = {}, employeeIds = []) => {
     const params = new URLSearchParams();
     params.append('page', page);
     params.append('limit', limit);
@@ -201,9 +201,11 @@ const EmployeeServices = {
       params.append('search', search);
     }
     
-    // Add employeeId filter (for admin)
-    if (employeeId) {
-      params.append('employeeId', employeeId);
+    // Add employeeIds filter (for admin) - supports multiple employee IDs
+    if (employeeIds && Array.isArray(employeeIds) && employeeIds.length > 0) {
+      employeeIds.forEach(id => {
+        params.append('employeeIds', id);
+      });
     }
     
     // Add filters
@@ -296,7 +298,7 @@ const EmployeeServices = {
     return requests.post("/lineups/create", body);
   },
 
-  getLineupsData: async (page = 1, limit = 10, search = "", filters = {}, employeeId = null) => {
+  getLineupsData: async (page = 1, limit = 10, search = "", filters = {}, employeeIds = []) => {
     const params = new URLSearchParams();
     params.append('page', page);
     params.append('limit', limit);
@@ -327,17 +329,55 @@ const EmployeeServices = {
       params.append('dateRangeType', filters.dateRangeType);
     }
     
-    // Add employee filter (for admin)
-    if (employeeId) {
-      params.append('employeeId', employeeId);
+    // Add employee filter (for admin) - supports multiple employee IDs
+    if (employeeIds && Array.isArray(employeeIds) && employeeIds.length > 0) {
+      employeeIds.forEach(id => {
+        params.append('employeeIds', id);
+      });
     }
     
     return requests.get(`/lineups?${params.toString()}`);
   },
 
-  getWalkinsData: async (page = 1, limit = 10, search = "") => {
-    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
-    return requests.get(`/walkins?page=${page}&limit=${limit}${searchParam}`);
+  getWalkinsData: async (page = 1, limit = 10, search = "", filters = {}, employeeIds = []) => {
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('limit', limit);
+    
+    if (search) {
+      params.append('search', search);
+    }
+    
+    // Add status filter
+    if (filters.status) {
+      params.append('status', filters.status);
+    }
+    
+    // Add date range filters - send as YYYY-MM-DD format to avoid timezone issues
+    if (filters.startDate) {
+      const startDate = filters.startDate instanceof Date 
+        ? `${filters.startDate.getFullYear()}-${String(filters.startDate.getMonth() + 1).padStart(2, '0')}-${String(filters.startDate.getDate()).padStart(2, '0')}`
+        : filters.startDate;
+      params.append('startDate', startDate);
+    }
+    if (filters.endDate) {
+      const endDate = filters.endDate instanceof Date 
+        ? `${filters.endDate.getFullYear()}-${String(filters.endDate.getMonth() + 1).padStart(2, '0')}-${String(filters.endDate.getDate()).padStart(2, '0')}`
+        : filters.endDate;
+      params.append('endDate', endDate);
+    }
+    if (filters.dateRangeType) {
+      params.append('dateRangeType', filters.dateRangeType);
+    }
+    
+    // Add employee filter (for admin) - supports multiple employee IDs
+    if (employeeIds && Array.isArray(employeeIds) && employeeIds.length > 0) {
+      employeeIds.forEach(id => {
+        params.append('employeeIds', id);
+      });
+    }
+    
+    return requests.get(`/walkins?${params.toString()}`);
   },
 
   createWalkinData: async (body) => {

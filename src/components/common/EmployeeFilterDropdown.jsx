@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { FaChevronRight } from "react-icons/fa";
+import { FaChevronRight, FaCheck } from "react-icons/fa";
 import EmployeeServices from "@/services/EmployeeServices";
 import { notifyError } from "@/utils/toast";
 
 /**
- * Reusable Employee Filter Dropdown Component
- * Shows only for admin users and allows filtering by employee
+ * Reusable Employee Filter Dropdown Component with Multi-Select
+ * Shows only for admin users and allows filtering by multiple employees
  * 
  * @param {boolean} isAdmin - Whether the current user is admin
- * @param {string} selectedEmployeeId - Currently selected employee ID
- * @param {function} onEmployeeChange - Callback when employee selection changes
+ * @param {string[]} selectedEmployeeIds - Array of currently selected employee IDs
+ * @param {function} onEmployeeChange - Callback when employee selection changes (receives array of IDs)
  * @param {string} className - Additional CSS classes for the container
  */
 const EmployeeFilterDropdown = ({ 
   isAdmin, 
-  selectedEmployeeId, 
+  selectedEmployeeIds = [], 
   onEmployeeChange,
   className = ""
 }) => {
@@ -92,10 +92,29 @@ const EmployeeFilterDropdown = ({
     return null;
   }
 
-  const handleSelectEmployee = (employeeId) => {
-    onEmployeeChange(employeeId);
-    setShowEmployeeDropdown(false);
-    setEmployeeSearchTerm("");
+  // Handle checkbox toggle for an employee
+  const handleEmployeeToggle = (employeeId) => {
+    const currentIds = Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : [];
+    
+    if (employeeId === "") {
+      // "All Employees" clicked - clear all selections
+      onEmployeeChange([]);
+    } else {
+      // Toggle individual employee
+      if (currentIds.includes(employeeId)) {
+        // Remove from selection
+        onEmployeeChange(currentIds.filter(id => id !== employeeId));
+      } else {
+        // Add to selection
+        onEmployeeChange([...currentIds, employeeId]);
+      }
+    }
+  };
+
+  // Check if an employee is selected
+  const isEmployeeSelected = (employeeId) => {
+    const currentIds = Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : [];
+    return currentIds.includes(employeeId);
   };
 
   const filteredEmployees = employees.filter(employee => 
@@ -103,9 +122,19 @@ const EmployeeFilterDropdown = ({
     employee.email?.toLowerCase().includes(employeeSearchTerm.toLowerCase())
   );
 
-  const selectedEmployeeName = selectedEmployeeId 
-    ? employees.find(emp => emp._id === selectedEmployeeId)?.name || "Select Employee"
-    : "All Employees";
+  // Get display text for button
+  const getDisplayText = () => {
+    const currentIds = Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : [];
+    
+    if (currentIds.length === 0) {
+      return "All Employees";
+    } else if (currentIds.length === 1) {
+      const emp = employees.find(e => e._id === currentIds[0]);
+      return emp?.name || "1 Employee";
+    } else {
+      return `${currentIds.length} Employees`;
+    }
+  };
 
   return (
     <>
@@ -117,7 +146,7 @@ const EmployeeFilterDropdown = ({
           onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
           className="w-full px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 flex items-center justify-between"
         >
-          <span className="truncate">{selectedEmployeeName}</span>
+          <span className="truncate">{getDisplayText()}</span>
           <FaChevronRight 
             className={`ml-2 h-3 w-3 transition-transform ${showEmployeeDropdown ? 'rotate-90' : ''}`}
           />
@@ -164,28 +193,46 @@ const EmployeeFilterDropdown = ({
               {/* All Employees Option */}
               <button
                 type="button"
-                onClick={() => handleSelectEmployee("")}
-                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                  selectedEmployeeId === "" 
+                onClick={() => handleEmployeeToggle("")}
+                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                  (Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : []).length === 0 
                     ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
                     : "text-gray-900 dark:text-white"
                 }`}
               >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                  (Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : []).length === 0
+                    ? "bg-blue-500 border-blue-500 text-white"
+                    : "border-gray-300 dark:border-gray-600"
+                }`}>
+                  {(Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : []).length === 0 && (
+                    <FaCheck className="w-2.5 h-2.5" />
+                  )}
+                </div>
                 All Employees
               </button>
               
-              {/* Employee List */}
+              {/* Employee List with Checkboxes */}
               {filteredEmployees.map((employee) => (
                 <button
                   key={employee._id}
                   type="button"
-                  onClick={() => handleSelectEmployee(employee._id)}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                    selectedEmployeeId === employee._id 
+                  onClick={() => handleEmployeeToggle(employee._id)}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                    isEmployeeSelected(employee._id) 
                       ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
                       : "text-gray-900 dark:text-white"
                   }`}
                 >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                    isEmployeeSelected(employee._id)
+                      ? "bg-blue-500 border-blue-500 text-white"
+                      : "border-gray-300 dark:border-gray-600"
+                  }`}>
+                    {isEmployeeSelected(employee._id) && (
+                      <FaCheck className="w-2.5 h-2.5" />
+                    )}
+                  </div>
                   {employee.name}
                 </button>
               ))}
@@ -206,4 +253,3 @@ const EmployeeFilterDropdown = ({
 };
 
 export default EmployeeFilterDropdown;
-

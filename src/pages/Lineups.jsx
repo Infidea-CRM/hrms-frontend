@@ -121,8 +121,8 @@ function Lineups() {
     contactNumber: ""
   });
 
-  // Employee filter state (for admin only)
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  // Employee filter state (for admin only) - supports multiple employee IDs
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
 
   const [isLoadingCandidateName, setIsLoadingCandidateName] = useState(false);
 
@@ -209,7 +209,7 @@ function Lineups() {
           itemsPerPage, 
           searchTerm, 
           apiFilters,
-          selectedEmployeeId || null
+          selectedEmployeeIds
         );
         setApiData(response);
         setTotalLineups(response?.totalLineups || 0);
@@ -225,7 +225,7 @@ function Lineups() {
     };
 
     fetchLineups();
-  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters.status, dateRange.startDate, dateRange.endDate, dateRangeType, selectedEmployeeId]);
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters.status, dateRange.startDate, dateRange.endDate, dateRangeType, selectedEmployeeIds]);
 
 
   const handleResetField = () => {
@@ -245,7 +245,7 @@ function Lineups() {
       company: "",
       process: ""
     });
-    setSelectedEmployeeId(""); // Reset employee filter
+    setSelectedEmployeeIds([]); // Reset employee filter
     setItemsPerPage(DEFAULT_ITEMS_PER_PAGE);
     setCurrentPage(1);
     // Force a refresh
@@ -262,8 +262,8 @@ function Lineups() {
   };
 
   // Handler for employee filter change
-  const handleEmployeeChange = (employeeId) => {
-    setSelectedEmployeeId(employeeId);
+  const handleEmployeeChange = (employeeIds) => {
+    setSelectedEmployeeIds(employeeIds);
     setCurrentPage(1); // Reset to first page when employee filter changes
   };
 
@@ -1118,7 +1118,7 @@ function Lineups() {
               {/* Employee Filter Dropdown (Admin Only) */}
               <EmployeeFilterDropdown
                 isAdmin={isAdmin}
-                selectedEmployeeId={selectedEmployeeId}
+                selectedEmployeeIds={selectedEmployeeIds}
                 onEmployeeChange={handleEmployeeChange}
               />
               

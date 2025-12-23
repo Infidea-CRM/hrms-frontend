@@ -487,6 +487,28 @@ export const getLineupStatusColorClass = (status) => {
     : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
 };
 
+// Walkin Status options
+export const walkinStatusOptions = [
+  {
+    value: "Walked-in",
+    label: "Walked-in",
+    colorClass: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  },
+  {
+    value: "Pending",
+    label: "Pending",
+    colorClass: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+  },
+];
+
+// Helper function to get walkin status color class
+export const getWalkinStatusColorClass = (status) => {
+  const found = walkinStatusOptions.find((option) => option.value === status);
+  return found
+    ? found.colorClass
+    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
+};
+
 // Call Status options for filters
 export const callStatusOptions = [
   { value: "Call Back Requested", label: "Call Back Requested" },

@@ -116,8 +116,8 @@ const CallDetails = () => {
   const [qualifications, setQualifications] = useState([]);
   const [localities, setLocalities] = useState([]);
   
-  // Employee filter state (for admin only)
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  // Employee filter state (for admin only) - supports multiple employee IDs
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   
   // Date picker modal states
   const [showStartDateModal, setShowStartDateModal] = useState(false);
@@ -134,7 +134,7 @@ const CallDetails = () => {
           searchTerm,
           filters,
           { startDate: dateRange.startDate, endDate: dateRange.endDate, dateRangeType },
-          selectedEmployeeId || null
+          selectedEmployeeIds
         );
         setApiData(response);
         setTotalCandidates(response?.totalCandidates || 0);
@@ -149,7 +149,7 @@ const CallDetails = () => {
     };
 
     fetchCandidates();
-  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters, dateRange.startDate, dateRange.endDate, dateRangeType, selectedEmployeeId]);
+  }, [currentPage, itemsPerPage, refreshKey, searchTerm, filters, dateRange.startDate, dateRange.endDate, dateRangeType, selectedEmployeeIds]);
 
   // Add useEffect to fetch qualifications and localities
   useEffect(() => {
@@ -296,7 +296,7 @@ const CallDetails = () => {
     setMobileError("");
     setDuplicateInfo(null);
     setDuplicityCheckCount(0);
-    setSelectedEmployeeId(""); // Clear employee filter
+    setSelectedEmployeeIds([]); // Clear employee filter
     setEmployeeSearchTerm(""); // Clear employee search
     setShowEmployeeDropdown(false); // Close employee dropdown
     // Force a refresh
@@ -1013,8 +1013,8 @@ const CallDetails = () => {
   }, [showFilterDropdown]);
 
   // Employee filter change handler
-  const handleEmployeeChange = (employeeId) => {
-    setSelectedEmployeeId(employeeId);
+  const handleEmployeeChange = (employeeIds) => {
+    setSelectedEmployeeIds(employeeIds);
     setCurrentPage(1);
   };
 
@@ -1162,7 +1162,7 @@ const CallDetails = () => {
   useEffect(() => {
     setSelectedCandidates([]);
     setSelectAll(false);
-  }, [filters, dateRange, searchTerm, selectedEmployeeId]);
+  }, [filters, dateRange, searchTerm, selectedEmployeeIds]);
 
   // Filter out invalid selections when filteredData changes
   // This ensures selectedCandidates only contains IDs that exist in current filteredData
@@ -1619,7 +1619,7 @@ const CallDetails = () => {
               {/* Employee Filter Dropdown (Admin Only) */}
               <EmployeeFilterDropdown
                 isAdmin={isAdmin}
-                selectedEmployeeId={selectedEmployeeId}
+                selectedEmployeeIds={selectedEmployeeIds}
                 onEmployeeChange={handleEmployeeChange}
               />
               

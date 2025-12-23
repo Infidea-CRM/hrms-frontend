@@ -144,10 +144,7 @@ const LineupsTable = ({
       key: "interviewDate",
       align: "center",
       render: (date) => (
-        <div className="flex flex-col items-center">
-          <span className="text-sm font-medium">{formatLongDate(date)}</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{format12HourTime(date)}</span>
-        </div>
+        <span className="text-sm font-medium">{formatLongDate(date)}</span>
       ),
     },
     {

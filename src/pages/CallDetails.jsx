@@ -402,7 +402,8 @@ const CallDetails = () => {
         }
 
         // Set duplicate info for UI display based on lock or registration status
-        if (isLocked && lockedBy) {
+        if (isLocked && lockedBy && !isLastRegisteredBy) {
+          // Locked by someone else
           const timeInfo = remainingTime ? remainingTime : `${remainingDays} days`;
           toast(`Candidate is locked by ${lockedBy} for ${timeInfo}. Viewing in read-only mode.`, {
             icon: 'ℹ️',
@@ -414,17 +415,13 @@ const CallDetails = () => {
             remainingTime: timeInfo,
             alreadyRegistered: false
           });
-        } else if (alreadyInHistory || isLastRegisteredBy) {
-          toast("You have already registered this candidate. Viewing in read-only mode.", {
-            icon: 'ℹ️',
-            duration: 4000,
+        } else if (isLastRegisteredBy) {
+          // Your own candidate - show positive message
+          toast.success("This is your candidate. You can update the details.", {
+            duration: 3000,
           });
           
-          setDuplicateInfo({
-            lockedBy: null,
-            remainingTime: null,
-            alreadyRegistered: true
-          });
+          setDuplicateInfo(null); // No warning needed for your own candidate
         } else {
           // Clear duplicate info if not locked and not already registered
           setDuplicateInfo(null);
@@ -478,7 +475,8 @@ const CallDetails = () => {
           }
 
           // Set duplicate info for locked or already registered candidates
-          if (candidate.isLocked && candidate.lockedBy) {
+          if (candidate.isLocked && candidate.lockedBy && !candidate.isLastRegisteredBy) {
+            // Locked by someone else
             const timeInfo = candidate.remainingTime ? candidate.remainingTime : `${candidate.remainingDays} days`;
             setDuplicateInfo({
               lockedBy: candidate.lockedBy,
@@ -489,16 +487,12 @@ const CallDetails = () => {
               icon: 'ℹ️',
               duration: 4000,
             });
-          } else if (candidate.alreadyInHistory || candidate.isLastRegisteredBy) {
-            setDuplicateInfo({
-              lockedBy: null,
-              remainingTime: null,
-              alreadyRegistered: true
+          } else if (candidate.isLastRegisteredBy) {
+            // Your own candidate - show positive message
+            toast.success("This is your candidate. You can update the details.", {
+              duration: 3000,
             });
-            toast("You have already registered this candidate. Viewing in read-only mode.", {
-              icon: 'ℹ️',
-              duration: 4000,
-            });
+            setDuplicateInfo(null); // No warning needed for your own candidate
           } else {
             setDuplicateInfo(null);
           }

@@ -104,6 +104,15 @@ const WalkinsTable = ({
       ),
     },
     {
+      title: "Entry Date",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      align: "center",
+      render: (date) => (
+        <span className="text-sm">{formatLongDate(date)}</span>
+      ),
+    },
+    {
       title: "Walkin Date",
       dataIndex: "walkinDate",
       key: "walkinDate",

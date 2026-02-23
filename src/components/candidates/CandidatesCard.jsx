@@ -85,7 +85,7 @@ const CandidatesCard = ({
     
     // If it's an object with a summary property
     if (typeof callSummary === 'object' && callSummary.summary) {
-      return callSummary.summary;
+      return callSummary?.summary;
     }
     
     // If it's a string, use it directly
@@ -115,7 +115,7 @@ const CandidatesCard = ({
       return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
     } else if (nameParts.length === 1) {
       // If only one part, take first letter
-      return nameParts[0][0].toUpperCase();
+      return nameParts[0][0]?.toUpperCase();
     }
     return "?";
   };
@@ -333,7 +333,7 @@ const CandidatesCard = ({
                     <div className="detail-compact">
                       <span className="detail-label-compact">Course:</span>
                       <span className="detail-value-compact">
-                        {searchTerm ? highlightText(candidate.course, searchTerm) : candidate.course}
+                        {searchTerm ? highlightText(candidate?.course, searchTerm) : candidate.course}
                       </span>
                     </div>
                   )}
@@ -342,7 +342,7 @@ const CandidatesCard = ({
                     <div className="detail-compact">
                       <span className="detail-label-compact">Registered By:</span>
                       <span className="detail-value-compact">
-                        {searchTerm ? highlightText(candidate.lastRegisteredByName, searchTerm) : candidate.lastRegisteredByName}
+                        {searchTerm ? highlightText(candidate?.lastRegisteredByName, searchTerm) : candidate.lastRegisteredByName}
                       </span>
                     </div>
                   )}

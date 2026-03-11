@@ -446,6 +446,39 @@ const EmployeeServices = {
     return requests.get("/activity/on-desk-data");
   },
 
+  getEmployeeSigninSignoutReport: async (params = {}) => {
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      startDate,
+      endDate,
+      employeeIds = [],
+    } = params;
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", page);
+    queryParams.append("limit", limit);
+
+    if (search) {
+      queryParams.append("search", search);
+    }
+
+    if (startDate) {
+      queryParams.append("startDate", startDate);
+    }
+
+    if (endDate) {
+      queryParams.append("endDate", endDate);
+    }
+
+    if (employeeIds && Array.isArray(employeeIds) && employeeIds.length > 0) {
+      employeeIds.forEach((id) => queryParams.append("employeeIds", id));
+    }
+
+    return requests.get(`/activity/signin-signout-report?${queryParams.toString()}`);
+  },
+
   applyForLeave: async (leaveData) => {
     return requests.post("/leaves/apply", leaveData);
   },

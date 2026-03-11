@@ -18,6 +18,7 @@ const SidebarContent = () => {
   const { state, dispatch } = useContext(AdminContext);
   const { adminInfo } = state || {};
   const { accessList } = useGetCData();
+  const isAdmin = adminInfo?.isAdmin || false;
 
 
 
@@ -38,6 +39,9 @@ const SidebarContent = () => {
       }
       // Handle top-level route: check root path part
       const routeKey = route.path?.split("?")[0].split("/")[1];
+      if (routeKey === "employee-signin-signout-details") {
+        return isAdmin ? route : null;
+      }
       return routeKey && accessList.includes(routeKey) ? route : null;
     })
     .filter(Boolean);

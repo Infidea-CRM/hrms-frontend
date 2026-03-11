@@ -1,11 +1,19 @@
-import React from "react";
+import React, { useContext } from "react";
 import useGetCData from "@/hooks/useGetCData";
 import NotFoundPage from "@/components/common/NotFoundPage";
+import { AdminContext } from "@/context/AdminContext";
 
 const Main = ({ children }) => {
   const { path, accessList } = useGetCData();
+  const { state } = useContext(AdminContext);
+  const isAdmin = state?.adminInfo?.isAdmin || false;
 
-  if (!accessList?.includes(path)) {
+  const isAdminOnlyRoute = path === "employee-signin-signout-details";
+  const hasAccess = isAdminOnlyRoute
+    ? isAdmin
+    : path === "dashboard" || accessList?.includes(path);
+
+  if (path && !hasAccess) {
     return <NotFoundPage />;
   }
   return (

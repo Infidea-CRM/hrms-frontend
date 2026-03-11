@@ -6,6 +6,7 @@ import Main from "@/layout/Main";
 import Header from "@/components/header/Header";
 import Sidebar from "@/components/sidebar/Sidebar";
 import { SidebarContext } from "@/context/SidebarContext";
+import { AdminContext } from "@/context/AdminContext";
 import ThemeSuspense from "@/components/theme/ThemeSuspense";
 import { routes } from "@/routes";
 import { ActivityProvider } from "@/components/ActivityContext";
@@ -16,6 +17,8 @@ const Page404 = lazy(() => import("@/pages/404"));
 
 const Layout = () => {
   const { isSidebarOpen, closeSidebar } = useContext(SidebarContext);
+  const { state } = useContext(AdminContext);
+  const isAdmin = state?.adminInfo?.isAdmin || false;
   const { accessList = [] } = useGetCData();
   let location = useLocation();
 
@@ -53,7 +56,11 @@ const Layout = () => {
                     // Extract the route key from the path
                     const routeKey = route.path.split('/')[1];
                     // Check if user has access to this route (always allow dashboard)
-                    const hasAccess = routeKey === 'dashboard' || accessList.includes(routeKey);
+                    const isAdminOnlyRoute =
+                      routeKey === 'employee-signin-signout-details';
+                    const hasAccess = isAdminOnlyRoute
+                      ? isAdmin
+                      : routeKey === 'dashboard' || accessList.includes(routeKey);
                     
                     return route.component && hasAccess ? (
                       <Route

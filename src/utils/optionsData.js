@@ -311,6 +311,9 @@ export const companyOptions = [
   { value: "Qconnect", label: "Qconnect" },
   { value: "Altruist", label: "Altruist" },
   { value: "Annova", label: "Annova" },
+  { value: "Medibuddy", label: "Medibuddy" },
+  { value: "Digitide", label: "Digitide" },
+  { value: "MMC-Convert", label: "MMC-Convert" },
   { value: "Others", label: "Others" },
 ];
 

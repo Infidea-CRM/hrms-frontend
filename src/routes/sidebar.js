@@ -80,6 +80,11 @@ const sidebar = [
     icon: FiClock,
     name: "Employee Signin/Signout Details",
   },
+  {
+    path: "/employee-access-control",
+    icon: FiUsers,
+    name: "Employee Access Control",
+  },
 
   // {
   //   path: "/users",

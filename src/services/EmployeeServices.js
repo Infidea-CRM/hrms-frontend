@@ -235,6 +235,37 @@ const EmployeeServices = {
     return requests.get("/Employee/all-employees");
   },
 
+  getEmployeeAccessList: async (params = {}) => {
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      status = "all",
+    } = params;
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", page);
+    queryParams.append("limit", limit);
+
+    if (search) {
+      queryParams.append("search", search);
+    }
+
+    if (status && status !== "all") {
+      queryParams.append("status", status);
+    }
+
+    return requests.get(
+      `/employee/admin/employee-access?${queryParams.toString()}`
+    );
+  },
+
+  updateEmployeeAccessStatus: async (employeeId, status) => {
+    return requests.patch(`/employee/admin/employee-access/${employeeId}/status`, {
+      status,
+    });
+  },
+
   updateCandidateData: async (candidateId, body) => {
     return requests.patch(`/candidates/${candidateId}`, body);
   },

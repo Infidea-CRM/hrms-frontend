@@ -1,6 +1,7 @@
-import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
-import io from 'socket.io-client';
-import Cookies from 'js-cookie';
+import React, { createContext, useState, useEffect, useContext, useRef } from "react";
+import io from "socket.io-client";
+import Cookies from "js-cookie";
+import { AdminContext } from "@/context/AdminContext";
 
 // Create socket context
 const SocketContext = createContext(null);
@@ -9,6 +10,13 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [socketError, setSocketError] = useState(null);
   const socketRef = useRef(null);
+  const { dispatch } = useContext(AdminContext);
+
+  const handleForcedLogout = () => {
+    Cookies.remove("adminInfo", { sameSite: "None", secure: true });
+    dispatch({ type: "USER_LOGOUT" });
+    window.location.href = "/login";
+  };
 
   // Initialize socket connection when the app loads
   useEffect(() => {
@@ -28,15 +36,15 @@ export const SocketProvider = ({ children }) => {
       const socketURL = import.meta.env.VITE_APP_API_SOCKET_URL;
       
       if (!socketURL) {
-        console.error('WebSocket URL not defined in environment variables');
-        setSocketError('WebSocket URL not configured');
+        console.error("WebSocket URL not defined in environment variables");
+        setSocketError("WebSocket URL not configured");
         return;
       }
       
       // Create socket instance with configuration
       const socket = io(socketURL, {
-        transports: ['websocket', 'polling'], // Try WebSocket first, then fall back to polling
-        reconnectionAttempts: 10,  // Try to reconnect 10 times
+        transports: ["websocket", "polling"], // Try WebSocket first, then fall back to polling
+        reconnectionAttempts: 10, // Try to reconnect 10 times
         reconnectionDelay: 1000,  // Start with 1 second delay
         reconnectionDelayMax: 5000, // Maximum delay between reconnections
         timeout: 20000, // Connection timeout
@@ -49,7 +57,7 @@ export const SocketProvider = ({ children }) => {
       setupSocketListeners(socket);
       
     } catch (error) {
-      console.error('Failed to initialize socket:', error);
+      console.error("Failed to initialize socket:", error);
       setSocketError(`Initialization error: ${error.message}`);
     }
   };
@@ -67,54 +75,58 @@ export const SocketProvider = ({ children }) => {
   // Setup socket event listeners
   const setupSocketListeners = (socket) => {
     // Connection events
-    socket.on('connect', () => {
+    socket.on("connect", () => {
       setIsConnected(true);
       setSocketError(null);
       
       // Get employee info from cookies
-      const adminInfo = Cookies.get('adminInfo') ? JSON.parse(Cookies.get('adminInfo')) : null;
+      const adminInfo = Cookies.get("adminInfo")
+        ? JSON.parse(Cookies.get("adminInfo"))
+        : null;
       
       // Join employee-specific room if logged in
       if (adminInfo && adminInfo.user && adminInfo.user._id) {
-        socket.emit('join-employee-room', adminInfo.user._id);
+        socket.emit("join-employee-room", adminInfo.user._id);
       }
     });
     
-    socket.on('connect_error', (err) => {
-      console.error('WebSocket connect error:', err.message);
+    socket.on("connect_error", (err) => {
+      console.error("WebSocket connect error:", err.message);
       setSocketError(`Connection error: ${err.message}`);
       setIsConnected(false);
     });
     
-    socket.on('disconnect', (reason) => {
+    socket.on("disconnect", (reason) => {
       setIsConnected(false);
       
-      if (reason === 'io server disconnect') {
+      if (reason === "io server disconnect") {
         // The server forcefully disconnected the socket
         socket.connect();
       }
     });
     
     // Reconnection events
-    socket.on('reconnect', (attemptNumber) => {
+    socket.on("reconnect", (attemptNumber) => {
       setIsConnected(true);
       setSocketError(null);
     });
     
-    socket.on('reconnect_error', (err) => {
-      console.error('Socket reconnection error:', err.message);
+    socket.on("reconnect_error", (err) => {
+      console.error("Socket reconnection error:", err.message);
       setSocketError(`Reconnection error: ${err.message}`);
     });
     
-    socket.on('reconnect_failed', () => {
-      console.error('Socket reconnection failed after multiple attempts');
-      setSocketError('Reconnection failed');
+    socket.on("reconnect_failed", () => {
+      console.error("Socket reconnection failed after multiple attempts");
+      setSocketError("Reconnection failed");
     });
     
-    socket.on('error', (err) => {
-      console.error('Socket error:', err);
+    socket.on("error", (err) => {
+      console.error("Socket error:", err);
       setSocketError(`Socket error: ${err.message || 'Unknown error'}`);
     });
+
+    socket.on("force_logout", handleForcedLogout);
   };
   
   // Manually reconnect socket
@@ -131,7 +143,7 @@ export const SocketProvider = ({ children }) => {
     if (socketRef.current && isConnected) {
       socketRef.current.emit(event, data, callback);
     } else {
-      console.warn('Cannot emit event, socket not connected:', event);
+      console.warn("Cannot emit event, socket not connected:", event);
     }
   };
   
@@ -141,7 +153,7 @@ export const SocketProvider = ({ children }) => {
     isConnected,
     socketError,
     reconnect,
-    emit
+    emit,
   };
   
   return (
@@ -155,9 +167,9 @@ export const SocketProvider = ({ children }) => {
 export const useSocket = () => {
   const context = useContext(SocketContext);
   if (!context) {
-    throw new Error('useSocket must be used within a SocketProvider');
+    throw new Error("useSocket must be used within a SocketProvider");
   }
   return context;
 };
 
-export default SocketContext; 
+export default SocketContext;

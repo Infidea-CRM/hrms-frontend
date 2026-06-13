@@ -39,7 +39,10 @@ const SidebarContent = () => {
       }
       // Handle top-level route: check root path part
       const routeKey = route.path?.split("?")[0].split("/")[1];
-      if (routeKey === "employee-signin-signout-details") {
+      if (
+        routeKey === "employee-signin-signout-details" ||
+        routeKey === "employee-access-control"
+      ) {
         return isAdmin ? route : null;
       }
       return routeKey && accessList.includes(routeKey) ? route : null;

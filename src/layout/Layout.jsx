@@ -57,7 +57,8 @@ const Layout = () => {
                     const routeKey = route.path.split('/')[1];
                     // Check if user has access to this route (always allow dashboard)
                     const isAdminOnlyRoute =
-                      routeKey === 'employee-signin-signout-details';
+                      routeKey === "employee-signin-signout-details" ||
+                      routeKey === "employee-access-control";
                     const hasAccess = isAdminOnlyRoute
                       ? isAdmin
                       : routeKey === 'dashboard' || accessList.includes(routeKey);

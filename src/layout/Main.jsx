@@ -8,7 +8,9 @@ const Main = ({ children }) => {
   const { state } = useContext(AdminContext);
   const isAdmin = state?.adminInfo?.isAdmin || false;
 
-  const isAdminOnlyRoute = path === "employee-signin-signout-details";
+  const isAdminOnlyRoute =
+    path === "employee-signin-signout-details" ||
+    path === "employee-access-control";
   const hasAccess = isAdminOnlyRoute
     ? isAdmin
     : path === "dashboard" || accessList?.includes(path);

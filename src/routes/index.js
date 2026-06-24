@@ -16,6 +16,7 @@ const Notes = lazy(() => import("@/pages/Notes"));
 const EmployeeSigninSignoutDetails = lazy(
   () => import("@/pages/EmployeeSigninSignoutDetails")
 );
+const EmployeeAccessControl = lazy(() => import("@/pages/EmployeeAccessControl"));
 
 /*
 //  * ⚠ These are internal routes!
@@ -80,6 +81,10 @@ const routes = [
   {
     path: "/employee-signin-signout-details",
     component: EmployeeSigninSignoutDetails,
+  },
+  {
+    path: "/employee-access-control",
+    component: EmployeeAccessControl,
   },
 ];
 

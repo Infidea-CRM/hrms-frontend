@@ -38,6 +38,33 @@ instance.interceptors.request.use(function (config) {
   };
 });
 
+const AUTH_EXCLUDED_ROUTES = [
+  "/auth/employee/login",
+  "/auth/employee/verify-login-otp",
+  "/auth/employee/resend-login-otp",
+  "/auth/employee/forgot-Password",
+  "/auth/employee/reset-password",
+];
+
+instance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    const requestUrl = error?.config?.url || "";
+    const hasSession = Boolean(Cookies.get("adminInfo"));
+    const isExcludedRoute = AUTH_EXCLUDED_ROUTES.some((route) =>
+      requestUrl.includes(route)
+    );
+
+    if (status === 401 && hasSession && !isExcludedRoute) {
+      Cookies.remove("adminInfo", { sameSite: "None", secure: true });
+      window.location.href = "/login";
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 const responseBody = (response) => response.data;
 
 const requests = {
